@@ -408,6 +408,8 @@ DSH_HOME 里的已安装副本仍是旧写法时，报告只在「待自愈」�
   「单轮 ~2.5 分钟、绝大部分时间在解包」的前提在本机不成立，本票不把它当收益写进结论。
   取证口径：改造前的 1198/1112 ms 来自单独计时脚本（改造前报告还没有 fixture 段），改造后来自报告里的
   `fixture.durationMs`（进 report.json）加整轮秒表，不是估算。
+  复现：删掉 `_fixture-cache` 目录 → 跑一次 `npm run verify`（未命中，顺带重建缓存）→ 再跑一次（命中），
+  对照 `report.json` 的 `fixture.cacheHit` 与 `fixture.durationMs`。
 - 通过证据：
   - 单测 `tests/verify/fixture-cache.test.js` 九项：命中复制、size/mtime 失效、缺 package.json / 少包 / 清单损坏重建、
     宿主版本不一致不复用、配方变了不复用、命中后复制失败不假装命中、缓存不可写不阻断、缓存根路径、报告 `fixture` 段区分
