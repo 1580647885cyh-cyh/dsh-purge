@@ -11,3 +11,9 @@
 ### Domain docs
 
 采用单一上下文；探索代码或形成设计前，先读 `docs/agents/domain.md`。
+
+## 仓库导航
+
+- **验证入口**：改宿主适配、提示词/预设注册或管理生命周期前，先读 `docs/verification/README.md`；隔离验证用 `npm run verify`，不要在真实安装上执行 apply/revert。
+- **代码地图**：找模块入口、补丁管线、宿主发现和测试位置，读 `docs/CODE-MAP.md`。
+- **提交检查**：`npm run check` 全量语法 + 入口 import；pre-commit 钩子启用方式见 `.githooks/pre-commit`。

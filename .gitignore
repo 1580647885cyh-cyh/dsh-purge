@@ -6,8 +6,7 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 
-# 只给本机 Cursor 技能看，不进仓库
-docs/agents/
+# docs/agents 随仓库发布：AGENTS.md 的导航指针在任意克隆中都要可达。
 
 # 本地草稿，不进仓库
 scripts/tmp-*.mjs

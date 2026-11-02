@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
   buildManifest,
@@ -69,14 +70,47 @@ test("pluginFingerprint 读取当前维护版版本与更新锁", () => {
   assert.match(plugin.packageJsonSha256, /^[0-9a-f]{64}$/);
 });
 
-test("gitRelation 读取本地与用户远端关系", () => {
-  const relation = gitRelation(REPO_ROOT);
-  assert.equal(relation.available, true);
-  assert.equal(relation.branch, "main");
-  assert.ok(relation.dirtyFiles > 0);
-  assert.equal(relation.userRemote, true);
-  assert.equal(relation.head, null);
-  assert.match(relation.note, /HEAD/);
+function makeGitRepo(label) {
+  const dir = path.join(TEST_ROOT, label + "-" + process.pid + "-" + Date.now());
+  fs.mkdirSync(dir, { recursive: true });
+  const run = (args) => execFileSync("git", ["-C", dir, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+  run(["init", "-b", "main"]);
+  run(["config", "user.email", "verify@example.com"]);
+  run(["config", "user.name", "verify"]);
+  fs.writeFileSync(path.join(dir, "README.md"), "fixture\n");
+  run(["add", "README.md"]);
+  run(["commit", "-m", "init"]);
+  run(["remote", "add", "origin", "https://github.com/1580647885cyh-cyh/dsh-purge.git"]);
+  return dir;
+}
+
+test("gitRelation 读取分支、HEAD、远端与用户仓库关系", () => {
+  const dir = makeGitRepo("git-relation");
+  try {
+    const relation = gitRelation(dir);
+    assert.equal(relation.available, true);
+    assert.equal(relation.branch, "main");
+    assert.match(relation.head, /^[0-9a-f]{40}$/);
+    assert.equal(relation.headSubject, "init");
+    assert.equal(relation.dirtyFiles, 0);
+    assert.equal(relation.remotes.length, 1);
+    assert.equal(relation.userRemote, true);
+    assert.equal(relation.upstreamRemote, false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("gitRelation 对非仓库目录返回 available=false", () => {
+  const dir = path.join(TEST_ROOT, "not-a-repo-" + process.pid + "-" + Date.now());
+  fs.mkdirSync(dir, { recursive: true });
+  try {
+    const relation = gitRelation(dir);
+    assert.equal(relation.available, false);
+    assert.ok(relation.note.length > 0);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("hostFingerprint 记录 0.2.1-rc.5 桌面宿主指纹", () => {
