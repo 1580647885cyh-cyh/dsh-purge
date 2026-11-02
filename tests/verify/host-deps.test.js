@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { resolveHostModule } from "../../lib/host-deps.js";
-import { assertDriveDPath } from "../../lib/verify/isolate.js";
+import { tempDir } from "./helpers.js";
 
 /**
  * 宿主依赖解析：只在能核对身份的宿主包根上解析 @deepseek-ai/dsh-tools。
@@ -12,13 +12,7 @@ import { assertDriveDPath } from "../../lib/verify/isolate.js";
  * 以及“有同名包但没有宿主身份”的诱饵目录。
  */
 
-const TEST_ROOT = assertDriveDPath("D:\\dsh\\tmp\\dsh-purge-test", "测试根目录");
 const SPEC = "@deepseek-ai/dsh-tools";
-
-function tempDir(label) {
-  fs.mkdirSync(TEST_ROOT, { recursive: true });
-  return fs.mkdtempSync(path.join(TEST_ROOT, label));
-}
 
 function writePackage(dir, name) {
   fs.mkdirSync(path.join(dir, "lib"), { recursive: true });

@@ -31,6 +31,9 @@ node scripts/verify.mjs --json # 输出机器可读报告
 5. 真实安装只读：记录真实安装 targetFiles 的 stat（本次运行 55 个文件），管理操作结束后确认 mtime/size 全部未变。
 6. 真实 DSH_HOME 只读：只读取 .agent-presets 做静态审计；真实会话、凭据、工作区不参与验证。
 7. 不启动 Electron、不发送真实模型请求；宿主包（cordis、system-prompt、tools）以模块方式只读加载。
+8. `app.asar` 是未打补丁的解出源，`resources/app` 是当前运行中的已打补丁副本：判断「官方原文」看 asar，判断「现在生效什么」看 `resources/app`。
+9. 隔离环境清空 PATH 后，桌面 exe 发现不会回落到真实安装，所以 `desktop-shell` 只在真实安装的只读定位里出现；隔离副本里的桌面壳用 asar 解出的 `lib/main.js` 单独证明。
+10. 任何要走 `apply*` 的临时脚本必须用 `npm run probe <file>`：它切隔离环境、预检宿主范围，并在操作前后核对真实安装目标文件的 stat。
 
 ## 入口一：保护基线封存与校验
 
@@ -249,6 +252,7 @@ DSH_HOME 里的已安装副本仍是旧写法时，报告只在「待自愈」�
 - lib/verify/report.js：报告构建与 Markdown 渲染。
 - lib/verify/run.js：完整流程编排。
 - scripts/verify.mjs：命令行入口。
+- scripts/probe.mjs：隔离探针入口（`npm run probe <file>`），切环境 + 宿主预检 + 真实安装只读核对。
 - tests/verify/*.test.js：单元与集成测试。
 ## 行为冲突记录（#4：toolFilter → agentPreset）
 

@@ -3,11 +3,10 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { buildReport, knownFailures, renderReportMarkdown, writeReport } from "../../lib/verify/report.js";
-
-const TEST_ROOT = "D:\\dsh\\tmp\\dsh-purge-test";
+import { tempDir } from "./helpers.js";
 
 function workspace(name) {
-  const root = path.join(TEST_ROOT, name + "-" + process.pid + "-" + Date.now());
+  const root = tempDir(name + "-");
   const out = path.join(root, "out");
   fs.mkdirSync(out, { recursive: true });
   return { root, home: path.join(root, "home"), install: path.join(root, "desktop"), out };

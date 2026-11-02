@@ -13,15 +13,7 @@ import {
   planWorkspace,
   snapshotTree,
 } from "../../lib/verify/isolate.js";
-
-const TEST_ROOT = "D:\\dsh\\tmp\\dsh-purge-test";
-
-function tempDir(name) {
-  fs.mkdirSync(TEST_ROOT, { recursive: true });
-  const dir = path.join(TEST_ROOT, name + "-" + process.pid + "-" + Date.now());
-  fs.mkdirSync(dir, { recursive: true });
-  return dir;
-}
+import { TEST_ROOT, tempDir } from "./helpers.js";
 
 test("isDriveDPath / assertDriveDPath 只接受 D 盘", () => {
   assert.equal(isDriveDPath("D:\\dsh\\tmp"), true);

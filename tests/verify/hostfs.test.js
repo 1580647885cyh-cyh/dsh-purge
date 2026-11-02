@@ -4,7 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import { hostFs } from "../../lib/extract-asar.js";
 import { patchShim, refreshStaleBaksForUpgrade, shimFileStatus } from "../../lib/core.js";
-import { assertDriveDPath } from "../../lib/verify/isolate.js";
+import { tempDir } from "./helpers.js";
 
 /**
  * 文件探测与管理操作里的文件描述符路径。
@@ -12,13 +12,6 @@ import { assertDriveDPath } from "../../lib/verify/isolate.js";
  * 宿主包（app.asar 仍在时）的文件都经 hostFs 代理读写；备份占位符、文本/二进制判定
  * 都通过 fd 完成。这里直接观察代理的 fd 契约与 classify 契约，不依赖真实宿主。
  */
-
-const TEST_ROOT = assertDriveDPath("D:\\dsh\\tmp\\dsh-purge-test", "测试根目录");
-
-function tempDir(label) {
-  fs.mkdirSync(TEST_ROOT, { recursive: true });
-  return fs.mkdtempSync(path.join(TEST_ROOT, label));
-}
 
 test("hostFs 支持 fd 写入、读取、状态与关闭，关闭后的错误可观察", () => {
   const dir = tempDir("fd-");

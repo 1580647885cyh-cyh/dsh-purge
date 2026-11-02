@@ -111,7 +111,19 @@ for (const [rel, text] of sources) {
   });
 }
 
-const hints = unusedExports.length + internalAssertions.length;
+// 规则 2（测试写盘约定）：临时目录统一走 tests/verify/helpers.js。
+// 只查"自己造临时目录"的写法：自建 TEST_ROOT 常量不算（planWorkspace 的 root 本来就该固定）。
+const ownTempDirs = [];
+for (const [rel, text] of sources) {
+  if (!rel.includes("tests") || !rel.endsWith(".test.js")) continue;
+  if (/from\s+["'][^"']*helpers\.js["']/.test(text)) continue;
+  const definesTempDir = /function\s+tempDir\s*\(/.test(text);
+  const usesMkdtemp = text.includes("mkdtempSync(");
+  if (!definesTempDir && !usesMkdtemp) continue;
+  ownTempDirs.push({ rel, line: 1, text: definesTempDir ? "自己定义 tempDir()" : "直接 mkdtempSync()" });
+}
+
+const hints = unusedExports.length + internalAssertions.length + ownTempDirs.length;
 if (unusedExports.length > 0) {
   console.warn("提示（不阻塞）：未使用导出 " + unusedExports.length + " 个（规则 5；宿主按名字取用的入口会误报）：");
   for (const hit of unusedExports.slice(0, 20)) console.warn("  " + hit.rel + ":" + hit.line + " " + hit.name);
@@ -120,6 +132,10 @@ if (unusedExports.length > 0) {
 if (internalAssertions.length > 0) {
   console.warn("提示（不阻塞）：测试断言了替身调用次数/内部记录 " + internalAssertions.length + " 处（规则 4）：");
   for (const item of internalAssertions.slice(0, 20)) console.warn("  " + item.rel + ":" + item.line + " " + item.text);
+}
+if (ownTempDirs.length > 0) {
+  console.warn("提示（不阻塞）：测试自建临时目录 " + ownTempDirs.length + " 处（规则 2；统一用 tests/verify/helpers.js 的 tempDir）：");
+  for (const item of ownTempDirs.slice(0, 20)) console.warn("  " + item.rel + "：" + item.text);
 }
 
 console.log("check: " + relative.length + " 个文件，" + entries.length + " 个入口"
