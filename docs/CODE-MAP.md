@@ -8,7 +8,8 @@
 - 身份与提示词改写：`lib/identity.js`
 - 补丁表与目标：`lib/core.js`（`ALL_PATCHES`、`targetFiles`、`applyPatchesAllHosts`、`revertAll`）
 - 桌面安装发现与重启：`lib/desktop.js`
-- asar 解包与文件代理：`lib/extract-asar.js`（`hostFs` 的文件描述符缺口见验证报告）
+- 宿主依赖解析：`lib/host-deps.js`（锚点候选 + 宿主包根身份核对；`lib/redteam/tools.js` 用它取 `@deepseek-ai/dsh-tools`）
+- asar 解包与文件代理：`lib/extract-asar.js`（`hostFs` 路径方法按 asar 映射选 fs；fd 方法直接交给 `node:fs`）
 - 宿主面识别：`lib/surface.js`
 - 更新锁：`lib/local-version-lock.js`、`lib/update.js`
 - RedTeam：`lib/redteam/index.js`、`lib/redteam/tools.js`、`presets/redteam/`
@@ -24,4 +25,4 @@
 
 - 改补丁行为：`lib/core.js` 的 `ALL_PATCHES` / `targetFiles`，在隔离副本上跑 `npm run verify`
 - 改提示词注入：`lib/index.js` 的 `registerPromptSections`，用 host-entry 捕获段名与变量
-- 改宿主发现或文件操作：`lib/desktop.js` / `lib/extract-asar.js`，配合 fd 探针与真实安装守卫
+- 改宿主发现或文件操作：`lib/desktop.js` / `lib/extract-asar.js` / `lib/host-deps.js`，配合 fd 探针、文件种类探针与真实安装守卫

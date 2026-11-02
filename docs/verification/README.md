@@ -51,6 +51,7 @@ node scripts/verify.mjs --json # 输出机器可读报告
 - 用真实宿主包 0.2.1-rc.5 的公开 API：cordis 的 Context/plugin、dsh-system-prompt 的 SystemPrompt 与 renderPrompt、dsh-tools 的 ToolRuntime 与 assertObjectJsonSchema。
 - 插件通过 ctx.plugin() 真实加载；与 dsh-agent-loop 一致只注册 provider/model 两个装配变量。
 - 捕获：装配段名与长度、renderPrompt 文本（长度/sha256/前 120 字符）、上下文快照、工具契约（名称、参数键、参数哈希）以及宿主 Schema 校验结果。
+- 工具桥接探针（#3）：先按隔离桌面布局（DSH_DESKTOP_INSTALL → resources/app/dsh/node_modules）解析 @deepseek-ai/dsh-tools，确认候选命中且结果落在隔离副本内；再只读地把锚点指向真实桌面安装，导入 lib/redteam/tools.js，确认 defineTool 真的加载出来（预设行 dsh-purge/redteam/tools 的前置条件）。
 - 已知故障按记录保留、不改预设：{{cwd}} 自定义模板仍会渲染失败；已安装 redteam 预设仍写已废弃 toolFilter。
 
 不覆盖：Electron 桌面进程、真实 HTTP 模型请求、模型回答质量。
@@ -62,7 +63,8 @@ node scripts/verify.mjs --json # 输出机器可读报告
 - 隔离副本从 app.asar 解出未打补丁的 dsh-agent-instructions、dsh-system-prompt、dsh-tools，而不是复制当前已打补丁的安装目录。
 - 通过插件公开注册的工具依次执行 purge_status、purge_apply、再次 purge_apply、purge_revert，并逐步比较文件哈希。
 - 观察项：apply 是否写入副本、重复 apply 是否稳定、是否产生 .dshpurge.bak、revert 是否真的还原。
-- hostFs 文件描述符探针复刻备份占位 fd 的创建与 rename，记录缺失方法与错误码。
+- hostFs 文件描述符探针复刻备份占位 fd 的创建与 rename，记录缺失方法与错误码（#3 起要求 present 齐全、无 fd 泄漏、rename 成功）。
+- 文件种类探针（#3）：用同一套公开函数处理三个文件——带 shim 签名的文本入口、二进制、普通文本——记录 `shimFileStatus` 前后结果、`patchShim` 返回值、二进制字节是否保持、普通文件是否被写入。基线只把带 shim 签名的文本当入口，普通文本按原语义与二进制一样不注入；探针校验的是“不误写”。
 
 ## 期望来源与允许的表示差异
 
@@ -73,7 +75,7 @@ node scripts/verify.mjs --json # 输出机器可读报告
 - 提示词空白与换行归一、provider/model 的具体取值、prompt-inject.md 的本机内容（不参与断言）。
 - 工具描述文本长度、参数键顺序（以集合与哈希比较）。
 - 报告时间戳、工作区路径、文件 mtime。
-- 隔离副本中 .bak、临时文件的存在与否只作为观察项。
+- .bak 的字节内容不作为 golden；但「apply 是否产生 bak」「revert 是否用 bak 还原」是验收项（#3）。
 
 不允许的差异：
 
@@ -100,16 +102,14 @@ node scripts/verify.mjs --json # 输出机器可读报告
 
 修复：隔离环境清空 PATH，使 discover 分支无外部信息可查；管理操作前强制预检宿主枚举范围；操作前后对比真实安装 targetFiles 的 stat，并在报告中输出「真实安装目标文件：未改动（55 个）」。该事件保留在此，提醒后续实现不要放宽发现范围。
 
-## 已知故障台账（不在本票修复）
+## 已知故障台账
 
 - cwd-template-variable：宿主只注册 provider/model，任意模板里的 {{cwd}} 仍会让装配渲染失败（归属 #5 / #6）。
 - preset-deprecated-redteam：已安装 redteam 预设第 317 行仍是 toolFilter，新宿主已废弃该字段（归属 #4）。
-- revert-without-backup：revert 报告成功但隔离副本没有 .dshpurge.bak，文件未被还原。
-- hostfs-fd-methods：hostFs 缺少 closeSync、readSync、fstatSync、fsyncSync；备份占位 fd 无法关闭，rename 返回 EPERM，apply 不产生备份（归属 #3 / #7）。
 
 这些条目由报告自动生成并附证据；修复对应任务时应先让条目消失，而不是修改本台账。
 
-## 本票验收对应
+## 本票验收对应（#2）
 
 - 核对并保留当前源码、形成可校验快照：baseline.js 的清单/treeHash/自检与测试。
 - 确认目标宿主与指纹：baseline.js 的 hostFingerprint/pluginFingerprint/environmentFingerprint 与报告。
@@ -119,8 +119,19 @@ node scripts/verify.mjs --json # 输出机器可读报告
 - 先例探针局限：见上一节。
 - 期望来源与允许差异：见上一节。
 
+## 本票验收对应（#3 桌面宿主依赖解析与文件探测）
+
+- 复现与宿主布局、接口使用的关系：隔离副本导入 lib/redteam/tools.js 报 cannot resolve @deepseek-ai/dsh-tools；目标包就在 resources/app/dsh/node_modules，但旧候选只有 argv/DSH_HOME/cwd 与一条固定路径。报告 hostEntry.toolBridge.isolated.tried 逐条列出候选状态，修复前该列表没有任何 resolved 项。
+- 隔离桌面加载取得工具桥接依赖：host-entry 的 toolBridge 在隔离副本按 desktop-install:app-dsh 解析成功；同一锚点下只读加载真实宿主包也成功（模块顶层解析失败会直接抛错），报告记录 isolated / host / loaded 三段。
+- 文本入口、普通文件与非文本文件的区分、fd 读取/关闭/错误：admin-entry 的 fileProbe + fdProbe，配 hostfs.test.js。注意基线契约：shimFileStatus 只把带 shim 签名（#!、@echo、REM 、"# "）的文本当入口，普通文本与二进制同样返回 binary；探针断言的是“入口被注入、二进制字节不变、普通文件不被 shim 写入”。
+- 覆盖当前布局、不靠固定路径或任意命中：lib/host-deps.js 只接受“@deepseek-ai 根带 dsh-agent-instructions/lib”的候选，并要求解析结果落回该锚点范围（符号链接按真实路径复核）。旧实现的 D:\DeepSeek Harness\npm-global 固定路径兜底已删除；同形态的 CLI 布局由 argv 候选覆盖，host-deps.test.js 有专门用例。
+- 对照布局回归：同一解析器在 DSH_HOME/node_modules、~/.dsh 同构目录、npm 嵌套布局（@deepseek-ai/dsh/node_modules）、argv bin 布局与 resourcesPath/execPath 桌面锚点都有用例。这里只验证解析候选与身份核对，不构成 Web 端验收承诺（ADR 0001）。
+- 随 fd 修复暴露的必要路径缺陷：refreshStaleBaksForUpgrade 原先只看 dsh-purge 字面标记；agent-instructions 这类补丁把官方句子换成强句、不带该字串，备份真正落地后重复 apply 会把有效 bak 覆盖成已打补丁内容，revert 再也还原不回去。现按目标补丁的 marker/替换文本判断“文件已被我们打过”，实现与回归见 lib/core.js、hostfs.test.js，报告里的 reapply=0 / revert 还原 5 个是验收证据。
+- 不动工具 Schema/工具集合/预设：本票只加解析模块、fd 代理与验证入口字段。
+
 ## 文件索引
 
+- lib/host-deps.js：宿主依赖解析（锚点候选 + 宿主包根身份核对）。
 - lib/verify/isolate.js：D 盘路径校验、工作区、隔离环境、快照与差异、宿主预检。
 - lib/verify/baseline.js：保护基线封存与校验、指纹、git 关系。
 - lib/verify/asar.js：从 app.asar 解出未打补丁宿主文件。
