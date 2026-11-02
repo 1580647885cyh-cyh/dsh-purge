@@ -12,6 +12,8 @@ Thumbs.db
 scripts/tmp-*.mjs
 scripts/test-*.mjs
 .scratch/
+# 本地代码索引（codegraph init 生成，随时可重建）
+.codegraph/
 dsh-redteam-mode-main/
 /1
 

@@ -22,6 +22,11 @@
 | 子智能体 | `dsh-subagent` + `dsh-subagent-spawn-in-process` | `ctx.subagents` | provider 行提供 `spawn`/`fork`；tool 行 `dsh-tool-subagent` 的 config 见下 |
 | 模型 | `dsh-llm` + `dsh-llm-pi-ai` | `ctx.llm` | `ctx.llm.stream({ provider, model, messages, tools })`；适配器配 `api: openai-completions` + `baseURL` + `apiKeyEnv` + `models` |
 
+## 消息与依赖（#5 实测）
+
+- `ctx.llm.stream({ messages })`：`message.content` 必须是**内容块数组**（`[{ type: "text", text }]`）。传字符串会在适配器历史校验里失败，最终只落一个 `finish` 块、没有 error 块、端点收不到请求——现象是"模型没产出 tool-call"。
+- 第三方依赖（如 `yaml`）在 `<install>/resources/app/dsh/node_modules/<pkg>`；`@deepseek-ai/` 只是宿主包目录，不是所有依赖的根。
+
 ## 预设从磁盘到挂载
 
 1. `$DSH_HOME/.agent-presets/<id>/{agent.cordis.yml,preset.yml}` **不是**宿主扫描目录；由插件读盘后 `ctx.agentPresets.register(definition)`（本项目在 `lib/redteam/index.js`）。
