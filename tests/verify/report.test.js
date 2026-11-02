@@ -21,6 +21,36 @@ const templateContract = (ok) => ({
   ],
 });
 
+const targetsRecord = (ok) => ({
+  ok,
+  error: "",
+  aiBase: "D:/fixture/@deepseek-ai",
+  live: {
+    aiBase: "C:/install/@deepseek-ai",
+    summary: { effective: 56, satisfied: 8, pending: 1, unmatched: 5, "not-applicable": 15, unknown: 0 },
+    unmatched: [{ id: 32, name: "WEB_SURFACE_IDENTITY_NEUTRAL", keys: ["web-app-lib"] }],
+    unresolvedKeys: [{ key: "hooks-codex", resolved: false, searched: ["C:/install/dsh-hooks-codex"] }],
+    shellFile: "C:/install/resources/app/lib/main.js",
+    notApplicable: [],
+  },
+  isolated: {
+    statusBefore: {},
+    statusAfter: {},
+    summary: { effective: 62, satisfied: 8, pending: 0, unmatched: 5, "not-applicable": 7, unknown: 0 },
+    applied: [],
+    notApplicable: [{ id: 30, name: "HOOKS_CLAUDE_DENY_ALLOW", optional: true, keys: [{ key: "hooks-claude-code", searched: ["D:/fixture/dsh-hooks-claude-code"] }] }],
+    unmatched: [{ id: 77, name: "REWIND_DROP_SENT_ON_APPEND", optional: true, keys: ["conversation-client"] }],
+    unresolvedKeys: [{ key: "hooks-codex", resolved: false, searched: ["D:/fixture/dsh-hooks-codex"] }],
+    diffs: { apply: 47, reapply: 0 },
+  },
+  audit: { falseSuccess: [], ahead: [], behind: [], settledByLayout: [{ id: 21, name: "BASH_TIMEOUT_RESTORE", status: "applied", targets: ["base"] }] },
+  runtime: {
+    completePrompt: { ok, error: ok ? "" : "注入段丢失", detail: {} },
+    shell: { ok, error: "", cases: [{ id: "clean-exit", ok }] },
+  },
+  liveHost: { ok: true, checked: 55, changed: [] },
+});
+
 const promptPreset = (ok) => ({
   ok,
   passes: [
@@ -74,6 +104,7 @@ test("buildReport 要求基线自检、宿主入口、模板契约、提示词�
     hostEntry: { ok: true, prompt: { length: 10, sha256: "deadbeef" }, sections: [], variables: ["provider", "model", "cwd"], tools: [], toolErrors: [], templateContract: templateContract(true), promptPreset: promptPreset(true) },
     presetAudit: { files: [] },
     admin: { ok: true, hosts: [path.join(ws.root, "x")], steps: [], diffs: {}, knownFailures: [], liveHost: { ok: true, checked: 55 } },
+    targets: targetsRecord(true),
     commands: ["node scripts/verify.mjs"],
   };
   const report = buildReport(base);
@@ -87,6 +118,29 @@ test("buildReport 要求基线自检、宿主入口、模板契约、提示词�
   assert.equal(templateFailed.ok, false, "模板契约失败必须让验证不通过，而不是降级成已知故障");
   const presetFailed = buildReport({ ...base, hostEntry: { ...base.hostEntry, promptPreset: promptPreset(false) } });
   assert.equal(presetFailed.ok, false, "完整提示词预设跑不通必须让验证不通过");
+  const runtimeFailed = buildReport({ ...base, targets: targetsRecord(false) });
+  assert.equal(runtimeFailed.ok, false, "目标定位与运行结果证明失败必须让验证不通过");
+});
+
+test("knownFailures 把假成功、状态超前与运行结果失败报成 #6 的失败", () => {
+  const failures = knownFailures({
+    targets: {
+      audit: {
+        falseSuccess: [{ id: 24, name: "PRESET_FETCH_ENABLED", status: "applied", targets: ["preset-standard"] }],
+        ahead: [{ id: 84, name: "DESKTOP_HOST_CLOSE_CODE0_NO_FAIL", status: "applied" }],
+      },
+      isolated: { diffs: { reapply: 2 } },
+      runtime: { completePrompt: { ok: false, error: "注入段丢失" } },
+      liveHost: { ok: false, changed: ["main.js"] },
+    },
+  });
+  const ids = failures.map((failure) => failure.id);
+  assert.ok(ids.includes("target-false-success-24"));
+  assert.ok(ids.includes("target-status-ahead-84"));
+  assert.ok(ids.includes("target-reapply-not-idempotent"));
+  assert.ok(ids.includes("target-runtime-completePrompt"));
+  assert.ok(ids.includes("target-live-host-write"));
+  assert.ok(failures.every((failure) => failure.owner === "#6"));
 });
 
 test("renderReportMarkdown 输出边界、入口、模板契约与提示词预设，不包含提示词正文", () => {
@@ -107,6 +161,7 @@ test("renderReportMarkdown 输出边界、入口、模板契约与提示词预�
       promptPreset: promptPreset(true),
     },
     admin: { ok: true, hosts: [path.join(ws.root, "host")], steps: [{ name: "apply", ok: true, text: "applied=1" }], diffs: { apply: { added: 0, changed: 5, removed: 0 } }, knownFailures: [], liveHost: { ok: true, checked: 55 } },
+    targets: targetsRecord(true),
   });
   const markdown = renderReportMarkdown(report);
   assert.match(markdown, /## 隔离边界/);
@@ -115,6 +170,10 @@ test("renderReportMarkdown 输出边界、入口、模板契约与提示词预�
   assert.match(markdown, /真实安装目标文件：未改动（55 个）/);
   assert.match(markdown, /模板渲染契约：通过（2 个案例）/);
   assert.match(markdown, /完整提示词预设：通过/);
+  assert.match(markdown, /## 目标定位与适配状态（#6）/);
+  assert.match(markdown, /应用后逐文件核对：写进文件 62/);
+  assert.match(markdown, /对不上 #77/);
+  assert.match(markdown, /桌面壳 close 回调：/);
   assert.equal(markdown.includes("cwd-template-variable"), false);
   assert.equal(markdown.includes("PRIME DIRECTIVE"), false);
 });

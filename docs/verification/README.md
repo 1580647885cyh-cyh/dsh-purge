@@ -62,7 +62,7 @@ node scripts/verify.mjs --json # 输出机器可读报告
 
 模块：lib/verify/admin-entry.js。
 
-- 隔离副本从 app.asar 解出未打补丁的 dsh-agent-instructions、dsh-system-prompt、dsh-tools，而不是复制当前已打补丁的安装目录。
+- 隔离副本从 app.asar 解出未打补丁的宿主包（#6 起补齐 targetFiles 实际引用的落点，另加 cordis/schemastery/dsh-scope/@standard-schema 与 pi-ai 的 dist/api），而不是复制当前已打补丁的安装目录；apply/revert 的覆盖面随之变大（本次 apply 改 47 个文件、revert 全部还原）。副本里没有桌面 exe：隔离环境清空了 PATH，补丁管线按设计不把真实安装当落点。
 - 通过插件公开注册的工具依次执行 purge_status、purge_apply、再次 purge_apply、purge_revert，并逐步比较文件哈希。
 - 观察项：apply 是否写入副本、重复 apply 是否稳定、是否产生 .dshpurge.bak、revert 是否真的还原。
 - hostFs 文件描述符探针复刻备份占位 fd 的创建与 rename，记录缺失方法与错误码（#3 起要求 present 齐全、无 fd 泄漏、rename 成功）。
@@ -81,6 +81,22 @@ node scripts/verify.mjs --json # 输出机器可读报告
 已知局限：不启动 profile 的 Loader 与整条服务图，所以证明的是失败单元（行 config）与组合等价性；整份预设一次挂载成功由真实桌面运行（#7）兜底。假端点不写真实凭据，密钥只放在进程环境里。
 
 子级预设的挂载代价：registry 会为红队模式和 redteam-worker 各挂一份组合（两者同一 scope 机制、各在自己的 isolate realm 里发布服务，因此不会在 root realm 重复注册；预设头部对“服务行必须带 isolate realm”的约定不变）。
+
+## 入口五：目标定位与适配状态（#6）
+
+模块：lib/verify/targets.js、lib/verify/target-entry.js。
+
+只回答两个事实问题：补丁要处理的文件在当前宿主里落在哪；应用之后目标文件里到底有没有目标态。
+
+- 只读定位：用 targetFiles 在真实安装（真实 DSH_HOME 只读）上解析每个键，记录解析到的路径；缺席的键列出实际搜索过的位置（hooks 包、liangshen 预设、user-approval 的 invariant.js 等）。
+- 隔离副本逐文件核对：purge_status → purge_apply → 对每个补丁的每个目标文件调用 patchEffectState，分成「目标态 / 还能匹配到待改原文 / 两者都不成立 / 不适用」；再用 patchOwnMarkPresent 把目标态拆成「处理写进了文件」与「宿主本来就满足」（#24 的 preset 本来就写 fetch: true 属于后者）。重复 purge_apply 后再比较整棵副本，必须 0 改动。
+- 状态一致性：状态说 applied/already 但文件里两者都不成立 → 假成功；状态说 applied 但文件里还有待改原文 → 状态超前；状态说 pending 但文件里既没原文也不是目标态 → 状态落后。布局软补丁（身份句、审批句）单独列成「按布局结算」，不计入成功证据。
+- 不适用与未定位：整行缺席的补丁按 optional 标注列出搜索位置；单个键缺席（*-nested、hooks、user-approval/invariant.js）单独列成未定位键，不被同补丁其他落点的成功吞掉。
+- 运行结果证明（都带故障对照，不是只看字符串）：
+  - 完整提示词装配：在应用后的副本里 import 宿主自己的 dsh-system-prompt，挂一个 complete 段 + dsh-purge 段 + required 上下文，走 assemble；要求注入段与 complete 段共存、抑制运行上下文后 required 仍在。对照：同一装配在未打补丁的真实宿主上必须丢掉注入段。
+  - 桌面壳 close 回调：从 app.asar 解出 lib/main.js，先在未打补丁的入口上跑 code=0（必须报错），再按补丁替换后跑 code=0 / code=3；要求前者不 fail、后者报错、重复应用 0 改动。
+  - preset fetch 落地：在副本上把 tool-web 的 fetch 改成 false，再走公开的 purge_apply；要求重新打开并写回标记，重复应用不追加。
+- 只在报告里保留计数、路径与通过情况；提示词正文不进报告。
 
 ## 期望来源与允许的表示差异
 
@@ -133,6 +149,9 @@ DSH_HOME 里的已安装副本仍是旧写法时，报告只在「待自愈」�
 注册 cwd 变量。模板渲染契约与完整提示词预设同时改成硬契约——任一案例失败即「验证不通过」，
 不再降级成已知故障条目。
 
+#6 起，目标定位与适配状态也是硬契约：假成功、状态超前、重复应用仍在改文件、运行结果证明失败，
+任一条出现即「验证不通过」；缺席的可选键在报告里逐条列出搜索位置，属于不适用而不是失败。
+
 ## 回归记录（#5 恢复模板渲染和完整提示词预设运行）
 
 - 故障：目标宿主（0.2.1-rc.5 的 dsh-agent-loop）只注册 provider/model；模板里的 {{cwd}}
@@ -145,6 +164,51 @@ DSH_HOME 里的已安装副本仍是旧写法时，报告只在「待自愈」�
 - 通过证据：完整提示词预设全部核对项通过——随包预设 persona 进装配并原样保留、真实装配内模板渲染出
   {{cwd}}、会话模式按预设走红队分支、重复装配三次一致、无残留变量、注入段 1 份、required 上下文在抑制下保留；
   受控请求的系统消息命中插件正文，运行上下文消息带工作目录。
+
+## 回归记录（#6 恢复 rc.5 目标定位并让适配状态反映实际结果）
+
+- 故障一（状态落后于结果，#84）：0.2.1-rc.5 的 close 回调写成
+  `if (code !== 0 && code !== null) … else fail(stopped)`。#83 会先把它改写成旧形态、#84 再消掉 code=0 的
+  stopped 分支 —— 应用链路本来就能生效（链式探针：只保留旧形态的 #84 也能改写）。但 patchStatus 按原文
+  直接匹配时不认这条链：未打补丁的副本上报 skipped，和「点应用会改文件」对不上。修法是给 #84 补一条直接
+  匹配 rc.5 形态的等价形式（替换语义与旧形态完全一致），状态回到 pending → applied。
+- 故障二（等价分支）：system-prompt 的 assemble 在 complete 分支前多了 requiredContexts 过滤，contexts
+  表达也换了形态。#40 只认旧形态，complete 预设下注入段会被整段丢掉；同一处若按旧替换写回，还会把 #5
+  要求的 required 运行上下文一起清空。
+- 故障三（标记造成的假成功）：#24 把通用字符串 `fetch: true` 当完成标记，而官方 preset 本来就写着
+  fetch: true —— 状态报成功，实际处理一次都没跑。现在由 presetToolWebFetchEnabled 按行缩进判定 tool-web
+  自己那一块，块外/别的行的 fetch 不算。
+- 修复：#84/#40 各补一条等价形式的匹配（替换语义不变）；#24 换成目标态判定，并补 rc.5 缩进下的
+  fetch: false → true 形；core 新增 settledWhen（补丁自带的目标态判定）与 patchEffectState（只看文件事实）。
+- 通过证据（本次报告）：隔离副本应用改了 47 个文件，重复应用 0 改动；应用后逐文件核对「写进文件 69 /
+  宿主本就满足 1 / 待改 0 / 对不上 5（#21/#80/#32/#53/#77，逐条带落点）/ 不适用 7（逐条带搜索位置）」；
+  状态一致：假成功 0 / 状态超前 0 / 状态落后 0。
+- 通过证据（运行结果）：完整提示词装配里 dsh-purge 段与 complete 段共存、抑制运行上下文后仍是
+  working-directory，而未打补丁的真实宿主在同一装配里丢掉注入段；桌面壳 close 回调未打补丁时 code=0 报错、
+  打补丁后不报错、code=3 仍报错、重复应用 0 改动；副本上关掉 preset 的 fetch 后，公开 purge_apply 重新打开
+  并写回标记，重复应用不追加。
+
+## 本票验收对应（#6 目标定位与适配状态）
+
+- 通过公开管理入口复现失配/假成功：#40 在修复前对 rc.5 的 complete 分支一次都命中不了（状态与应用都
+  skipped，注入段在 complete 预设下丢失）；#24 在未做任何处理的副本上一路报 applied，标记却是官方自己的
+  `fetch: true`；#84 则是状态落后于结果（应用链会改文件，状态报 skipped）。
+- 定位当前宿主实际模块与分支：只读定位列出每个键解析到的路径；#84 落在 `<install>/resources/app/lib/main.js`
+  的 close 回调，#40 落在 dsh-system-prompt 的 assemble complete 分支。桌面布局没有 npm 嵌套层，嵌套键在本轮
+  保持不适用并列出搜索位置，不做「反正有就用」的重复处理。
+- 保持基线语义、不整段替换：两条新匹配只补「等价表达形式」，替换文本与基线一致；#40 的替换保留 rc.5 的
+  requiredContexts 过滤，没有把上游新行为删掉或搬进来。
+- 状态与文件结果一致：patchEffectState 只看文件事实，patchOwnMarkPresent 再把「写进文件」与「宿主本就满足」
+  分开（#24 属于后者）；假成功 0 / 状态超前 0 / 状态落后 0；#21 这类布局软补丁单独列为「按布局结算」，
+  不计入成功证据。
+- 用隔离副本的应用与运行结果证明：入口五在 asar 解出的副本上走 purge_apply，再用宿主自己的 system-prompt
+  与桌面壳 close 回调整体跑分支，而不是断言 marker 出现。
+- 重复应用不追加、对照不被误命中：#84 的旧形态仍有专门用例；#24 的块外 fetch、tool-web 块内 fetch: false
+  都有反例；重复 purge_apply 与重复替换都是 0 改动。
+- 未复现/不适用项保留实现并提供证据：hooks-claude-code/codex、liangshen、unrestricted、user-approval 的
+  invariant.js 这些键在当前安装里不存在，报告逐条列出搜索过的位置（真实 DSH_HOME 与隔离副本分开列），
+  非可选的 #71 也标注「非可选」而不是当作成功；#32/#53/#77/#80 保持实现，状态是 skipped/对不上，
+  并在报告里逐条带落点，不用宽泛匹配放行。
 
 ## 本票验收对应（#2）
 
@@ -180,6 +244,8 @@ DSH_HOME 里的已安装副本仍是旧写法时，报告只在「待自愈」�
 - lib/verify/asar.js：从 app.asar 解出未打补丁宿主文件。
 - lib/verify/host-entry.js：真实宿主包加载、请求准备捕获、预设静态审计。
 - lib/verify/admin-entry.js：隔离副本管理生命周期、文件描述符探针、真实安装守卫。
+- lib/verify/targets.js：目标定位与逐文件目标态判定（含不适用键的搜索证据）。
+- lib/verify/target-entry.js：入口五编排、完整提示词装配与桌面壳 close 回调的运行结果证明。
 - lib/verify/report.js：报告构建与 Markdown 渲染。
 - lib/verify/run.js：完整流程编排。
 - scripts/verify.mjs：命令行入口。

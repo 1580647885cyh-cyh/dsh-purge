@@ -19,6 +19,7 @@
 ## 验证与测试
 
 - 隔离验证：`docs/verification/README.md`、`lib/verify/`、`scripts/verify.mjs`
+- 目标定位与适配状态（#6）：`lib/verify/targets.js`（逐文件目标态判定）、`lib/verify/target-entry.js`（入口五：定位、应用、运行结果证明）
 - 预设与工具契约入口：`lib/verify/preset-entry.js`、`lib/verify/model-endpoint.js`
 - 测试：`tests/verify/`；`npm test`（无宿主时集成测试自动 skip）
 - 检查：`npm run check`（全量 `node --check` + 入口 import）；`npm run test:unit`
