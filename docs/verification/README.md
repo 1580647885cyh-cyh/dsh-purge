@@ -66,6 +66,18 @@ node scripts/verify.mjs --json # 输出机器可读报告
 - hostFs 文件描述符探针复刻备份占位 fd 的创建与 rename，记录缺失方法与错误码（#3 起要求 present 齐全、无 fd 泄漏、rename 成功）。
 - 文件种类探针（#3）：用同一套公开函数处理三个文件——带 shim 签名的文本入口、二进制、普通文本——记录 `shimFileStatus` 前后结果、`patchShim` 返回值、二进制字节是否保持、普通文件是否被写入。基线只把带 shim 签名的文本当入口，普通文本按原语义与二进制一样不注入；探针校验的是“不误写”。
 
+## 入口四：预设注册与工具契约（#4）
+
+模块：lib/verify/preset-entry.js、lib/verify/model-endpoint.js。
+
+- 预设行入口：真实宿主的预设是把 agent.cordis.yml 里每一行交给 cordis ctx.plugin(模块, 行 config)。丢弃 toolFilter 后，挂载断在 tool-subagent 这一行的 apply 上。入口四按同一条路径挂载该行：负向（把旧 toolFilter 加回去）必须复现宿主报错，正向（迁移后）必须挂上，worker 组合必须只少 tool-subagent-fork / tool-workflow / tool-ralph 三行。
+- 已安装副本迁移：真实 DSH_HOME 只读；副本复制到工作区后执行与插件启动时相同的迁移，比对“只删除 toolFilter 那几行、只新增 agentPreset 与一行说明”，并连续迁移两次确认幂等。真实副本仍是旧写法时，报告把它列进「待自愈」，不算已知故障。
+- 组合校验：用宿主 registry 导出的 entryListProblem 校验迁移后与 worker 的行列表。
+- 参数契约：对每个已注册工具用宿主自己的 validateJsonSchemaValue 跑两类案例——空参数对象必须被接受，未声明的额外属性必须被拒绝（结论在 hostEntry.tools[].contract）。
+- 受控模型端点：本机 127.0.0.1 上的假 OpenAI 端点 + 真实 dsh-llm / dsh-llm-pi-ai 适配器；模型产出的 tool_call 交给 ctx.tools.execute，走宿主自己的参数校验与工具主体。第二轮让模型点名一个不存在的工具，宿主必须返回 unknown tool。
+
+已知局限：不启动 profile 的 Loader 与整条服务图，所以证明的是失败单元（行 config）与组合等价性；整份预设一次挂载成功由真实桌面运行（#7）兜底。假端点不写真实凭据，密钥只放在进程环境里。
+
 ## 期望来源与允许的表示差异
 
 期望来源：已封存的保护基线、宿主公开 API 的既定行为、已安装预设文件、本文件记录的已知故障。验证不生成 golden 输出，也不把新实现输出当作正确答案。
@@ -105,7 +117,9 @@ node scripts/verify.mjs --json # 输出机器可读报告
 ## 已知故障台账
 
 - cwd-template-variable：宿主只注册 provider/model，任意模板里的 {{cwd}} 仍会让装配渲染失败（归属 #5 / #6）。
-- preset-deprecated-redteam：已安装 redteam 预设第 317 行仍是 toolFilter，新宿主已废弃该字段（归属 #4）。
+
+#4 起，预设的旧 toolFilter 不再记成已知故障：迁移在隔离副本上验证（见入口四），真实
+DSH_HOME 里的已安装副本仍是旧写法时，报告只在「待自愈」一节列出，等插件下次启动就地迁移。
 
 这些条目由报告自动生成并附证据；修复对应任务时应先让条目消失，而不是修改本台账。
 
@@ -141,3 +155,12 @@ node scripts/verify.mjs --json # 输出机器可读报告
 - lib/verify/run.js：完整流程编排。
 - scripts/verify.mjs：命令行入口。
 - tests/verify/*.test.js：单元与集成测试。
+## 本票验收对应（#4 恢复现有预设加载并保持工具参数契约）
+
+- 通过真实宿主预设与工具注册入口复现废弃配置的加载阻断：入口四的 legacy 段（旧 toolFilter 被 dsh-tool-subagent 拒绝），错误文本与本机 preset-declare.json 记录的一致。
+- 随包预设与已安装旧副本都核查；迁移保留用户内容、重复执行不叠加：migratePresetCopy 只改副本，报告列出删除/新增的行，第二次迁移 changed=false。
+- 废弃字段保持原配置含义：旧 deny 的三件工具改由子级预设 redteam-worker 裁掉（deriveWorkerRows 从父级组合裁剪），没有用“删掉字段换可加载”的办法；tool-subagent 行的 provider/toolName/maxDepth 等原值不变。
+- 预设能被宿主注册和选择、工具集合符合原契约：migrated / worker 两段挂载都通过，composition 通过宿主 entryListProblem；worker 相对父级只少那三行。
+- 对象与嵌套 Schema 通过宿主校验、参数契约保留：hostEntry.tools[].contract 的 validAccepted / extraRejected 案例。
+- 受控模型端点与无害工具调用：modelToolCall（有效调用成功）与 modelToolCallRejected（工具集外被拒）。
+- 只改必要实现：版本 1.1.71、localVersionLock、本地可编辑方式与远程更新锁都未改动（baseline.plugin 记录）。

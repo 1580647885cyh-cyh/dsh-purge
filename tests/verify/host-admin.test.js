@@ -78,12 +78,48 @@ test("隔离宿主加载与请求准备：真实宿主包 + 插件工具契约",
     assert.equal(bridge.loaded.ok, true);
     assert.equal(bridge.loaded.apply, true);
 
+    // #4：旧 toolFilter 在真实宿主行入口复现，迁移后能挂上；子级预设只少那三行工具。
+    const presetEntry = report.presetEntry;
+    assert.equal(presetEntry.ok, true, JSON.stringify({ legacy: presetEntry.legacy, migrated: presetEntry.migrated, worker: presetEntry.worker }));
+    assert.equal(presetEntry.legacy.rejected, true, "旧配置应复现宿主的 toolFilter 拒绝");
+    assert.match(presetEntry.legacy.error, /toolFilter is no longer supported/);
+    assert.equal(presetEntry.migrated.ok, true, JSON.stringify(presetEntry.migrated));
+    assert.equal(presetEntry.composition.problem, "");
+    assert.deepEqual(presetEntry.worker.removed, ["tool-subagent-fork", "tool-workflow", "tool-ralph"]);
+    assert.equal(presetEntry.worker.ok, true);
+    assert.equal(presetEntry.worker.agentPreset, "redteam-worker");
+    assert.equal(presetEntry.bundled.ok, true, "随包模板同样要能挂上");
+    // 已安装副本只读：迁移只发生在隔离副本上，且只改 toolFilter 那几行。
+    assert.equal(report.presetMigration.idempotent, true, "重复迁移不应叠加改动");
+    assert.ok(report.presetMigration.addedLines.some((line) => /agentPreset: redteam-worker/.test(line)));
+    assert.ok(report.presetMigration.removedLines.some((line) => /toolFilter:/.test(line)));
+
+    // #4：参数契约用宿主校验器跑有效/额外属性案例。
+    for (const tool of report.hostEntry.tools) {
+      assert.equal(tool.contract.validAccepted, true, tool.name + " 应接受空参数对象");
+      assert.equal(tool.contract.extraRejected, true, tool.name + " 应拒绝未声明属性");
+    }
+
+    // #4：受控模型端点 → 模型产出的 tool_call → 真实工具执行路径。
+    assert.equal(report.modelToolCall.ok, true, JSON.stringify(report.modelToolCall));
+    assert.equal(report.modelToolCall.executed.isError, false);
+    assert.ok(report.modelToolCall.executed.textLength > 0);
+    assert.equal(report.modelToolCall.endpoint.requests.length, 1);
+    assert.ok(report.modelToolCall.endpoint.requests[0].toolNames.includes("purge_status"));
+    assert.equal(report.modelToolCallRejected.executed.isError, true, "工具集外的调用应被拒绝");
+
     const failureIds = report.knownFailures.map((failure) => failure.id);
     assert.equal(failureIds.includes("hostfs-fd-methods"), false, "fd 缺口应已修复");
     assert.equal(failureIds.includes("revert-without-backup"), false, "有备份后 revert 应还原");
     assert.equal(failureIds.includes("host-tool-bridge"), false);
     assert.ok(failureIds.includes("cwd-template-variable"));
-    assert.ok(failureIds.includes("preset-deprecated-redteam"));
+    // 已安装副本仍写 toolFilter 时，降级为“待自愈”，不再算已知故障。
+    assert.equal(failureIds.includes("preset-deprecated-redteam"), false);
+    assert.equal(failureIds.includes("preset-migration"), false);
+    if (report.presetEntry.installedLegacy) {
+      assert.equal(report.pendingSelfHeal.length, 1);
+      assert.match(report.pendingSelfHeal[0].summary, /已安装副本/);
+    }
     assert.ok(fs.existsSync(result.files.jsonFile));
     assert.ok(fs.existsSync(result.files.mdFile));
     const workspaceOut = path.join(result.workspace.out, "prompt.txt");

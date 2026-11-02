@@ -306,18 +306,17 @@
         modelSelectionSettings: true
         backgroundMode: continuable
         # 子智能体是角色执行者（信息收集/资产梳理/漏洞发现/漏洞利用/内网渗透），**必须是叶子节点**：
-        # 靠提示词劝"不要再往下委派"是软的——模型完全可以无视。这里直接把委派工具从子会话的
-        # 工具目录里摘掉，子智能体连看都看不到 subagent / subagent_fork / workflow / ralph。
+        # 靠提示词劝"不要再往下委派"是软的——模型完全可以无视。这里直接换掉子会话的整份工具目录。
+        # 宿主 0.2.1-rc.5 起 tool-subagent 不再接受 toolFilter（加载即报迁移错误），子级工具集改由
+        # Agent Preset 决定：redteam-worker 就是本组合裁掉 tool-subagent-fork / tool-workflow /
+        # tool-ralph 三行得到的（lib/redteam/preset-migration.js 的 deriveWorkerRows），
+        # 因此子智能体看不到 subagent_fork / workflow / ralph，和 1.1.71 的 deny 语义一一对应。
         # maxDepth 同时收成 1 作为二道保险（默认 3 层太深，会白吃并发预算与上下文）。
         maxDepth: 1
         # 注意：不能 deny `subagent` —— 它是这一行自己注册的 scoped 工具，不在全局工具库里，
         # 写进 deny 会让 tools.restrict() 校验失败、整个委派路径报 "unknown global tool"（v0.8.0 踩过）。
         # 子智能体拿不到 subagent_fork/workflow/ralph，加上 maxDepth: 1，实际已无派发能力。
-        toolFilter:
-          deny:
-            - subagent_fork
-            - workflow
-            - ralph
+        agentPreset: redteam-worker
 
     # Fork omits model selection so provider/model stay equal to the parent and
     # the inherited history remains eligible for KV Cache reuse. This preset

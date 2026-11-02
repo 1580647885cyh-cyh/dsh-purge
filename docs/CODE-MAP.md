@@ -13,10 +13,12 @@
 - 宿主面识别：`lib/surface.js`
 - 更新锁：`lib/local-version-lock.js`、`lib/update.js`
 - RedTeam：`lib/redteam/index.js`、`lib/redteam/tools.js`、`presets/redteam/`
+- 预设迁移：`lib/redteam/preset-migration.js`（toolFilter → agentPreset 的文本迁移、子级预设组合裁剪）
 
 ## 验证与测试
 
 - 隔离验证：`docs/verification/README.md`、`lib/verify/`、`scripts/verify.mjs`
+- 预设与工具契约入口：`lib/verify/preset-entry.js`、`lib/verify/model-endpoint.js`
 - 测试：`tests/verify/`；`npm test`（无宿主时集成测试自动 skip）
 - 检查：`npm run check`（全量 `node --check` + 入口 import）；`npm run test:unit`
 - 钩子：`git config core.hooksPath .githooks` 启用；跳过单次用 `DSH_PURGE_SKIP_HOOKS=1`
