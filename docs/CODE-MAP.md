@@ -6,6 +6,7 @@
 
 - 插件入口：`lib/index.js`（`apply`、`applyHostHooks`、`purge_*` 工具注册、提示词段）
 - 身份与提示词改写：`lib/identity.js`
+- 提示词装配变量：`lib/prompt-variables.js`（宿主只注册 provider/model，插件补 `cwd`；`promptHosts` 与 `registerPromptSections` 共用）
 - 补丁表与目标：`lib/core.js`（`ALL_PATCHES`、`targetFiles`、`applyPatchesAllHosts`、`revertAll`）
 - 桌面安装发现与重启：`lib/desktop.js`
 - 宿主依赖解析：`lib/host-deps.js`（锚点候选 + 宿主包根身份核对；`lib/redteam/tools.js` 用它取 `@deepseek-ai/dsh-tools`）

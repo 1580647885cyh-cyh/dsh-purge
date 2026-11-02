@@ -18,7 +18,7 @@ node scripts/verify.mjs --json # 输出机器可读报告
 产物：
 
 - 保护基线：D:\dsh\data\dsh-purge\baseline\baseline-<stamp>.json 与 latest.json，只在 D 盘，不进仓库。
-- 本次工作区：D:\dsh\tmp\dsh-purge-verify\<stamp>\，含 out/report.json、out/report.md、out/prompt.txt、out/tool-contracts.json。
+- 本次工作区：D:\dsh\tmp\dsh-purge-verify\<stamp>\，含 out/report.json、out/report.md、out/prompt.txt、out/context.txt、out/tool-contracts.json。
 
 报告只汇总结构性事实（长度、哈希、段名、工具名、文件差异）；提示词全文、工具契约全文只落在隔离工作区。
 
@@ -51,8 +51,10 @@ node scripts/verify.mjs --json # 输出机器可读报告
 - 用真实宿主包 0.2.1-rc.5 的公开 API：cordis 的 Context/plugin、dsh-system-prompt 的 SystemPrompt 与 renderPrompt、dsh-tools 的 ToolRuntime 与 assertObjectJsonSchema。
 - 插件通过 ctx.plugin() 真实加载；与 dsh-agent-loop 一致只注册 provider/model 两个装配变量。
 - 捕获：装配段名与长度、renderPrompt 文本（长度/sha256/前 120 字符）、上下文快照、工具契约（名称、参数键、参数哈希）以及宿主 Schema 校验结果。
+- 模板渲染契约（#5）：用插件加载后的真实装配变量渲染六类案例——旧模板、自定义模板、空后缀、缺失后缀、正常工作目录、缺失工作目录；期望值是保护基线的模板字面量，任一案例失败即本次验证不通过。
+- 完整提示词预设（#5）：读取随包预设的 persona 行配置（宿主自带 yaml 包解析），按该预设声明会话，再走装配 → 渲染 → 真实装配内模板 → 运行上下文快照 → 重复装配稳定性 → required 运行上下文在抑制/刷新下的生命周期；受控请求的消息按 dsh-agent-loop 的顺序组成（系统提示词、本轮用户消息、运行上下文快照），端点侧只记录角色、长度、哈希与标记命中。
 - 工具桥接探针（#3）：先按隔离桌面布局（DSH_DESKTOP_INSTALL → resources/app/dsh/node_modules）解析 @deepseek-ai/dsh-tools，确认候选命中且结果落在隔离副本内；再只读地把锚点指向真实桌面安装，导入 lib/redteam/tools.js，确认 defineTool 真的加载出来（预设行 dsh-purge/redteam/tools 的前置条件）。
-- 已知故障按记录保留、不改预设：{{cwd}} 自定义模板仍会渲染失败；已安装 redteam 预设仍写已废弃 toolFilter。
+- {{cwd}} 模板由插件补回的装配变量渲染（#5，见「回归记录」）；已安装 redteam 预设仍写已废弃 toolFilter 时进「待自愈」，不算已知故障。
 
 不覆盖：Electron 桌面进程、真实 HTTP 模型请求、模型回答质量。
 
@@ -89,11 +91,15 @@ node scripts/verify.mjs --json # 输出机器可读报告
 - 提示词空白与换行归一、provider/model 的具体取值、prompt-inject.md 的本机内容（不参与断言）。
 - 工具描述文本长度、参数键顺序（以集合与哈希比较）。
 - 报告时间戳、工作区路径、文件 mtime。
+- 验证入口的 working-directory 运行上下文按 dsh-working-directory 的公开契约复刻（name/order/required/JSON 引号目录），不加载该包的完整服务图；快照长度随目录路径长度变化。
+- 受控请求以端点摘要（角色/长度/哈希/标记命中）呈现，提示词与上下文正文只留在隔离工作区。
 - .bak 的字节内容不作为 golden；但「apply 是否产生 bak」「revert 是否用 bak 还原」是验收项（#3）。
 
 不允许的差异：
 
-- 提示词段缺失、工具名缺失、装配变量集合变化。
+- 提示词段缺失、工具名缺失、装配变量集合变化（#5 起必须含 cwd）。
+- 模板渲染契约任一案例失败、完整提示词预设任一核对项失败（#5 起是硬契约，不再记成已知故障）。
+- 受控请求的系统消息没命中插件正文，或运行上下文消息没带工作目录。
 - 宿主 Schema 校验从通过变成失败。
 - apply 在未打补丁副本上没有任何文件改动。
 - 重复 apply 再次改动文件。
@@ -118,12 +124,27 @@ node scripts/verify.mjs --json # 输出机器可读报告
 
 ## 已知故障台账
 
-- cwd-template-variable：宿主只注册 provider/model，任意模板里的 {{cwd}} 仍会让装配渲染失败（归属 #5 / #6）。
+这些条目由报告自动生成并附证据；修复对应任务时应先让条目消失，而不是修改本台账。
 
 #4 起，预设的旧 toolFilter 不再记成已知故障：迁移在隔离副本上验证（见入口四），真实
 DSH_HOME 里的已安装副本仍是旧写法时，报告只在「待自愈」一节列出，等插件下次启动就地迁移。
 
-这些条目由报告自动生成并附证据；修复对应任务时应先让条目消失，而不是修改本台账。
+#5 起，{{cwd}} 模板不再记成已知故障：插件在 apply 时用宿主公开的 SystemPrompt.variable
+注册 cwd 变量。模板渲染契约与完整提示词预设同时改成硬契约——任一案例失败即「验证不通过」，
+不再降级成已知故障条目。
+
+## 回归记录（#5 恢复模板渲染和完整提示词预设运行）
+
+- 故障：目标宿主（0.2.1-rc.5 的 dsh-agent-loop）只注册 provider/model；模板里的 {{cwd}}
+  让 renderPrompt 抛 unknown prompt variable，整份提示词渲染失败（此前工作目录报错的来源）。
+- 修复：lib/prompt-variables.js 在 apply 时注册 cwd（值取 session.header.cwd，缺失给空串），
+  旧模板/自定义模板按原契约渲染；插件自己的段仍不写 {{cwd}}，目录由宿主必需运行上下文提供，
+  不重复表达同一事实（原 CWD_ONLY_SUFFIX 修复保持不变）。
+- 通过证据：报告已知故障 0 条；模板渲染契约 6/6（含空后缀、缺失后缀、缺失工作目录），
+  并带故障对照——同一份旧模板只给宿主自带的 provider/model 时必须仍被拒绝（unknown prompt variable）。
+- 通过证据：完整提示词预设全部核对项通过——随包预设 persona 进装配并原样保留、真实装配内模板渲染出
+  {{cwd}}、会话模式按预设走红队分支、重复装配三次一致、无残留变量、注入段 1 份、required 上下文在抑制下保留；
+  受控请求的系统消息命中插件正文，运行上下文消息带工作目录。
 
 ## 本票验收对应（#2）
 
@@ -152,6 +173,7 @@ DSH_HOME 里的已安装副本仍是旧写法时，报告只在「待自愈」�
 
 ## 文件索引
 
+- lib/prompt-variables.js：提示词装配变量兼容层（宿主只注册 provider/model，插件补 cwd；与 lib/index.js 共用 promptHosts）。
 - lib/host-deps.js：宿主依赖解析（锚点候选 + 宿主包根身份核对）。
 - lib/verify/isolate.js：D 盘路径校验、工作区、隔离环境、快照与差异、宿主预检。
 - lib/verify/baseline.js：保护基线封存与校验、指纹、git 关系。
@@ -187,3 +209,13 @@ DSH_HOME 里的已安装副本仍是旧写法时，报告只在「待自愈」�
 - 对象与嵌套 Schema 通过宿主校验、参数契约保留：hostEntry.tools[].contract 的 validAccepted / extraRejected 案例。
 - 受控模型端点与无害工具调用：modelToolCall（有效调用成功）与 modelToolCallRejected（工具集外被拒）。
 - 只改必要实现：版本 1.1.71、localVersionLock、本地可编辑方式与远程更新锁都未改动（baseline.plugin 记录）。
+
+## 本票验收对应（#5 恢复模板渲染和完整提示词预设运行）
+
+- 先回归工作目录报错、已通过的不重复替换：CWD_ONLY_SUFFIX 与 identity.js 的目录句清理保持不变，本票没改提示词段，只补回宿主不再提供的 cwd 装配变量。
+- 旧模板、自定义模板、空或缺失后缀、正常与缺失工作目录：host-entry.js 的 templateContract 六案例；期望值取基线模板字面量，缺失目录时变量给空串，渲染不抛。
+- 完整提示词预设完成一次受控请求：promptPreset 的 assemble / render / template-in-assembly / baseline-sections / preset-persona / context / stability / required-context / refresh / suppressor-dispose / no-leftovers / no-duplication / request 十三项；随包预设的 persona 行载入装配，会话模式按该预设声明。
+- 宿主必需运行上下文与插件贡献的最终呈现：working-directory 按 dsh-working-directory 的公开契约注册（required、JSON 引号目录、不插值），抑制可选上下文后仍在、refresh 后仍在；受控请求的上下文消息命中它，系统消息命中 dsh-purge 正文。
+- 与保护基线比较、不宽泛忽略：段名与长度、变量集合、注入段份数、上下文段名逐项比较；report.ok 把模板契约与预设跑通算硬契约，不再降级成已知故障。
+- 重复组装与连续步骤稳定：两次装配的提示词、段、上下文一致；受控工具调用照旧（modelToolCall / modelToolCallRejected 未受本票影响）。
+- 版本与锁：1.1.71、localVersionLock（remoteUpdates:false、editable:true）与 dshTarget 未改动；baseline.plugin 记录照旧。

@@ -13,7 +13,7 @@
 | 用途 | 包 | 入口 | 契约要点 |
 | --- | --- | --- | --- |
 | 插件生命周期 | `@deepseek-ai/cordis` | `Context` | `ctx.plugin(plugin, config)`；插件行 = `{ id, name, config, disabled, group, isolate }` |
-| 系统提示词 | `dsh-system-prompt` | `SystemPrompt` | `ctx.systemPrompt.assemble/createAgentContext`、`renderPrompt(assembly)`、`renderContextSnapshot`；装配变量由宿主注册（桌面只有 `provider`/`model`），未知变量直接抛错 |
+| 系统提示词 | `dsh-system-prompt` | `SystemPrompt` | `ctx.systemPrompt.assemble/createAgentContext`、`renderPrompt(assembly)`、`renderContextSnapshot`；装配变量由宿主注册（桌面只有 `provider`/`model`），未知变量直接抛错；`cwd` 由插件补回（`lib/prompt-variables.js`，值取 `session.header.cwd`，缺失给空串） |
 | 工具 | `dsh-tools` | `ToolRuntime` | `ctx.tools.register/schemas/get/execute`；`defineTool`；`assertObjectJsonSchema`、`validateJsonSchemaValue`；执行入口 `ctx.tools.execute({ name, arguments, callId, signal })` |
 | 预设注册表 | `dsh-agent-preset-registry` | `AgentPresetRegistry` | `ctx.agentPresets.register/list/readDocument/resolve/compositionInventory`；导出 `entryListProblem`、`auditRows` |
 | 预设声明行 | `dsh-agent-preset` | 行插件 | `Config = { id, name, description, order, plugins }`；等价于 `ctx.agentPresets.register()` |
