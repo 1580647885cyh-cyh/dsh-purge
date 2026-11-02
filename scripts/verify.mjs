@@ -1,35 +1,19 @@
 #!/usr/bin/env node
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseVerifyArgs } from "../lib/verify/cli-args.js";
+import { describeRetention } from "../lib/verify/report.js";
 import { runVerification } from "../lib/verify/run.js";
 
 /**
- * 隔离验证入口：node scripts/verify.mjs [--root DIR] [--install DIR] [--stamp ID] [--json]
+ * 隔离验证入口：node scripts/verify.mjs [--root DIR] [--install DIR] [--out-root DIR]
+ *   [--baseline-dir DIR] [--stamp ID] [--keep N] [--no-prune] [--no-seal] [--json]
  * 退出码：0 通过；2 未通过（已知故障只记录，不影响退出码）。
  */
 
-function parseArgs(argv) {
-  const out = { root: path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."), json: false };
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (arg === "--json") { out.json = true; continue; }
-    if (arg === "--no-seal") { out.seal = false; continue; }
-    if (!arg.startsWith("--")) continue;
-    const inline = arg.includes("=") ? arg.slice(2).split("=") : null;
-    const key = inline ? inline[0] : arg.slice(2);
-    const value = inline ? inline.slice(1).join("=") : argv[i + 1];
-    if (!value || (!inline && value.startsWith("--"))) continue;
-    if (!inline) i += 1;
-    if (key === "root") out.root = path.resolve(value);
-    else if (key === "install") out.installDir = path.resolve(value);
-    else if (key === "out-root") out.outRoot = path.resolve(value);
-    else if (key === "baseline-dir") out.baselineDir = path.resolve(value);
-    else if (key === "stamp") out.stamp = value;
-  }
-  return out;
-}
-
-const args = parseArgs(process.argv.slice(2));
+const args = parseVerifyArgs(process.argv.slice(2), {
+  defaultRoot: path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."),
+});
 const result = await runVerification({
   root: args.root,
   outRoot: args.outRoot,
@@ -37,6 +21,8 @@ const result = await runVerification({
   installDir: args.installDir,
   stamp: args.stamp,
   seal: args.seal !== false,
+  prune: args.prune !== false,
+  retentionKeep: args.retentionKeep,
   logger: (stage, detail) => console.error("[" + stage + "] " + detail),
 });
 
@@ -49,6 +35,7 @@ if (args.json) {
     console.log("  基线 " + report.baseline.treeHash.slice(0, 16) + " · " + report.baseline.fileCount + " 文件 · 插件 " + (report.baseline.plugin ? report.baseline.plugin.version : "?") + " · 宿主 " + (report.baseline.host ? report.baseline.host.shellVersion : "?"));
     if (report.baseline.drift) console.log("  与上次基线：" + (report.baseline.drift.ok ? "一致" : "有差异"));
   }
+  if (report.retention) console.log("  工作区清理：" + describeRetention(report.retention));
   if (report.fixture) {
     console.log("  fixture：" + report.fixture.source
       + (report.fixture.cacheKey ? "（缓存" + (report.fixture.cacheHit ? "命中" : "重建") + " " + report.fixture.cacheKey + "）" : "")

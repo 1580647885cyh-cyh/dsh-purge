@@ -21,6 +21,8 @@
 - 隔离验证：`docs/verification/README.md`、`lib/verify/`、`scripts/verify.mjs`
 - 目标定位与适配状态（#6）：`lib/verify/targets.js`（逐文件目标态判定）、`lib/verify/target-entry.js`（入口五：定位、应用、运行结果证明）
 - 备份/恢复故障注入（#7）：`lib/verify/backup-faults.js`（完整备份 / 过期备份 / 0 字节备份），由入口三调用
+- 参数解析（#13）：`lib/verify/cli-args.js`（`scripts/verify.mjs` 的参数契约，含 `--keep` / `--no-prune`）
+- 工作区清理（#13）：`lib/verify/retention.js`（只清 `<stamp>` / `probe-<stamp>`，本轮与在跑的不清，释放量进报告）
 - fixture 缓存（#11）：`lib/verify/fixture-cache.js`（键 = app.asar size+mtime；命中整棵复制、未命中从 asar 解；缺包/损坏自动重建）
 - 隔离探针：`scripts/probe.mjs`（`npm run probe <file>`，切环境 + 宿主预检 + 真实安装只读核对）
 - 验收与兼容记录（#8）：`scripts/acceptance.mjs`（`npm run acceptance`）、`lib/verify/acceptance.js`、`docs/compatibility/`
