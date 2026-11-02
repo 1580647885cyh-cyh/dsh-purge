@@ -85,6 +85,9 @@ test("隔离宿主加载与请求准备：真实宿主包 + 插件工具契约",
     assert.match(presetEntry.legacy.error, /toolFilter is no longer supported/);
     assert.equal(presetEntry.migrated.ok, true, JSON.stringify(presetEntry.migrated));
     assert.equal(presetEntry.composition.problem, "");
+    assert.equal(presetEntry.composition.declaration, "", "预设声明应通过宿主 AgentPreset.Config");
+    assert.equal(presetEntry.worker.declaration, "");
+    assert.equal(presetEntry.worker.differsFromParent, true);
     assert.deepEqual(presetEntry.worker.removed, ["tool-subagent-fork", "tool-workflow", "tool-ralph"]);
     assert.equal(presetEntry.worker.ok, true);
     assert.equal(presetEntry.worker.agentPreset, "redteam-worker");

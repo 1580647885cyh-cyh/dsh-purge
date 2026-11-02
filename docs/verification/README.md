@@ -78,6 +78,8 @@ node scripts/verify.mjs --json # 输出机器可读报告
 
 已知局限：不启动 profile 的 Loader 与整条服务图，所以证明的是失败单元（行 config）与组合等价性；整份预设一次挂载成功由真实桌面运行（#7）兜底。假端点不写真实凭据，密钥只放在进程环境里。
 
+子级预设的挂载代价：registry 会为红队模式和 redteam-worker 各挂一份组合（两者同一 scope 机制、各在自己的 isolate realm 里发布服务，因此不会在 root realm 重复注册；预设头部对“服务行必须带 isolate realm”的约定不变）。
+
 ## 期望来源与允许的表示差异
 
 期望来源：已封存的保护基线、宿主公开 API 的既定行为、已安装预设文件、本文件记录的已知故障。验证不生成 golden 输出，也不把新实现输出当作正确答案。
@@ -155,11 +157,27 @@ DSH_HOME 里的已安装副本仍是旧写法时，报告只在「待自愈」�
 - lib/verify/run.js：完整流程编排。
 - scripts/verify.mjs：命令行入口。
 - tests/verify/*.test.js：单元与集成测试。
+## 行为冲突记录（#4：toolFilter → agentPreset）
+
+规格 #1 要求“无法保持原有配置含义时记录具体冲突，不自动折中”，这里按实记录新旧差异：
+
+1. **工具来源**：旧 toolFilter 是“父级当前工具集 − subagent_fork/workflow/ralph”；新接口只能让子级跑一份具名
+   Agent Preset，因此子级拿到的是 redteam-worker 组合声明的工具，而不是宿主在预设之外另外提供、由父级继承下来的工具。
+   就当前桌面组合而言，红队预设已经把模型可见工具都写在组合里，所以差异停在“理论上可能”的一层；一旦以后有工具只挂在
+   host 平面、靠继承到达父级，子级将不再自动获得它。
+2. **生效时机**：旧 deny 在派活时按当时的工具目录生效；新组合在插件启动时由已安装预设文件裁出。改完预设文件要重启
+   DSH 才会被下一次派活采用。
+3. **subagent 本身**：旧配置的注释已说明“不能 deny subagent（它是该行自己注册的 scoped 工具）”，新旧一致——
+   子级仍看得到 subagent，真正拦住递归的是 maxDepth: 1。
+4. **deny 列表的落点**：旧配置写工具名（subagent_fork/workflow/ralph），新配置靠行 id
+   （tool-subagent-fork/tool-workflow/tool-ralph）裁剪组合；两者由 lib/redteam/preset-migration.js 的
+   LEGACY_DENIED_ROWS 一一对应，任何一边改名都会让裁剪失效（测试里用该常量断言数量）。
+
 ## 本票验收对应（#4 恢复现有预设加载并保持工具参数契约）
 
 - 通过真实宿主预设与工具注册入口复现废弃配置的加载阻断：入口四的 legacy 段（旧 toolFilter 被 dsh-tool-subagent 拒绝），错误文本与本机 preset-declare.json 记录的一致。
 - 随包预设与已安装旧副本都核查；迁移保留用户内容、重复执行不叠加：migratePresetCopy 只改副本，报告列出删除/新增的行，第二次迁移 changed=false。
-- 废弃字段保持原配置含义：旧 deny 的三件工具改由子级预设 redteam-worker 裁掉（deriveWorkerRows 从父级组合裁剪），没有用“删掉字段换可加载”的办法；tool-subagent 行的 provider/toolName/maxDepth 等原值不变。
+- 废弃字段保持原配置含义：旧 deny 的三件工具改由子级预设 redteam-worker 裁掉（deriveWorkerRows 从父级组合裁剪），没有用“删掉字段换可加载”的办法；tool-subagent 行的 provider/toolName/maxDepth 等原值不变。上一节记录了无法完全等同的三处差异。
 - 预设能被宿主注册和选择、工具集合符合原契约：migrated / worker 两段挂载都通过，composition 通过宿主 entryListProblem；worker 相对父级只少那三行。
 - 对象与嵌套 Schema 通过宿主校验、参数契约保留：hostEntry.tools[].contract 的 validAccepted / extraRejected 案例。
 - 受控模型端点与无害工具调用：modelToolCall（有效调用成功）与 modelToolCallRejected（工具集外被拒）。
