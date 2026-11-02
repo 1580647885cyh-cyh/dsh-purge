@@ -98,6 +98,22 @@ node scripts/verify.mjs --json # 输出机器可读报告
 - 不完整备份：目标有效、bak 为 0 字节；`revertAll` 必须保留目标字节，并在 errors 里报 `backup_empty`。
 - 五个案例全过才算管理入口通过；失败即「验证不通过」。
 
+## 入口六：验收与兼容修订记录（#8）
+
+模块：`scripts/acceptance.mjs`（`npm run acceptance`）、`lib/verify/acceptance.js`。
+
+- 跑一遍完整隔离验证，再把报告收敛成兼容修订记录：宿主指纹（shell/runtime/buildCommit/app.asar）、插件版本与本地锁、
+  十个入口的逐项结果、已确认不适用项（带搜索位置）、未执行的检查、独立恢复材料（保护基线快照 + treeHash）。
+- 本地锁按实际行为核对：`assertRemoteUpdatesAllowed()` 必须抛 `ERR_DSH_PURGE_LOCAL_VERSION_LOCK`，
+  `localLockedUpdateStatus()` 必须 `locked/pinned`；插件版本必须是 1.1.71 且 `remoteUpdates:false, editable:true`。
+- 记录只含结构性事实，不含提示词正文、凭据或会话内容；默认写到 D 盘，`--out DIR --name BASE` 可把一份稳定记录放进仓库
+  （当前提交的是 `docs/compatibility/rc5-acceptance.md` 与同名 .json）。
+- 记录里还有：兼容修订目录（每项改动的故障/修复/回归证据）、「补丁对不上但不是失败」逐条落点、
+  本地依赖来源与手动编辑的实际证据。
+- `docs/compatibility/` 不算进保护基线（它是验收产物，不是待恢复源码），否则每写一次记录都会让
+  `--no-seal` 报漂移、恢复材料也对不上。
+- 「未执行的检查」逐条列出（真实 Electron 进程、真实模型网络、Web/macOS/Linux 与其他版本），不因为没报错就当作通过。
+
 ## 入口五：目标定位与适配状态（#6）
 
 模块：lib/verify/targets.js、lib/verify/target-entry.js。
@@ -307,6 +323,7 @@ DSH_HOME 里的已安装副本仍是旧写法时，报告只在「待自愈」�
 - lib/verify/run.js：完整流程编排。
 - scripts/verify.mjs：命令行入口。
 - scripts/probe.mjs：隔离探针入口（`npm run probe <file>`），切环境 + 宿主预检 + 真实安装只读核对。
+- scripts/acceptance.mjs：验收入口（`npm run acceptance`），跑完整验证并输出兼容修订记录；`lib/verify/acceptance.js` 负责收敛与渲染。
 - tests/verify/*.test.js：单元与集成测试。
 ## 行为冲突记录（#4：toolFilter → agentPreset）
 

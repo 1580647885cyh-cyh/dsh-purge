@@ -1,0 +1,365 @@
+{
+  "kind": "dsh-purge-acceptance",
+  "generatedAt": "2026-11-02T16:59:11.768Z",
+  "ok": true,
+  "plugin": {
+    "version": "1.1.71",
+    "localVersionLock": {
+      "version": "1.1.71",
+      "remoteUpdates": false,
+      "editable": true
+    },
+    "dshTarget": "0.2.0-rc.2",
+    "versionOk": true,
+    "dependencies": {},
+    "editable": true
+  },
+  "revisions": [
+    {
+      "id": "R1",
+      "issue": "#3",
+      "fault": "桌面布局下解析不到 @deepseek-ai/dsh-tools；备份占位 fd 未关闭导致 rename EPERM",
+      "fix": "宿主依赖锚点候选 + 包根身份核对；hostFs 补齐 fd 方法",
+      "evidence": "docs/verification/README.md「本票验收对应（#3）」"
+    },
+    {
+      "id": "R2",
+      "issue": "#4",
+      "fault": "宿主 0.2.1-rc.5 拒绝 toolFilter，预设行挂不上",
+      "fix": "toolFilter → agentPreset + redteam-worker 组合裁剪（保留原 deny 语义）",
+      "evidence": "docs/verification/README.md「本票验收对应（#4）」"
+    },
+    {
+      "id": "R3",
+      "issue": "#5",
+      "fault": "宿主只注册 provider/model，{{cwd}} 让整份提示词渲染失败",
+      "fix": "apply 时用 SystemPrompt.variable 补 cwd（缺失给空串）",
+      "evidence": "docs/verification/README.md「回归记录（#5）」"
+    },
+    {
+      "id": "R4",
+      "issue": "#6",
+      "fault": "rc.5 的等价分支/编译形式识别不到（#40/#84）；通用标记把官方文案当成功（#24）",
+      "fix": "补等价形式匹配 + settledWhen/patchEffectState/patchOwnMarkPresent；新增目标定位与适配状态入口",
+      "evidence": "docs/verification/README.md「回归记录（#6）」"
+    },
+    {
+      "id": "R5",
+      "issue": "#7",
+      "fault": "过期 bak 未刷新（目标态/官方标记误判）导致旧宿主内容写回；0 字节 bak 清空目标",
+      "fix": "looksPatchedAlready 改用自证标记 + provenance；revert 前刷新过期 bak、拒绝空备份",
+      "evidence": "docs/verification/README.md「回归记录（#7）」"
+    }
+  ],
+  "host": {
+    "shellVersion": "0.2.1-rc.5",
+    "runtimeVersion": "0.2.1-rc.5",
+    "buildCommit": "d4db512a969fccf0c5cc7ec8fe38e9c1d27af916",
+    "asar": {
+      "size": 182766714,
+      "mtimeMs": 1793282572000
+    }
+  },
+  "baseline": {
+    "file": "D:\\dsh\\data\\dsh-purge\\baseline\\baseline-acceptance-commit.json",
+    "treeHash": "de61ac63d1ae891da78a2f4faec9d70b6b7d919b218b7be3bb21f3d9daa16fc6",
+    "fileCount": 152
+  },
+  "lock": {
+    "ok": true,
+    "error": "ERR_DSH_PURGE_LOCAL_VERSION_LOCK",
+    "status": {
+      "locked": true,
+      "pinned": true,
+      "channel": "stable",
+      "updateTarget": "local"
+    }
+  },
+  "entries": [
+    {
+      "id": "host-entry",
+      "label": "宿主加载（cordis 真实加载 + 工具注册）",
+      "ok": true,
+      "error": ""
+    },
+    {
+      "id": "template",
+      "label": "提示词模板渲染契约",
+      "ok": true,
+      "error": ""
+    },
+    {
+      "id": "prompt-preset",
+      "label": "完整提示词预设运行",
+      "ok": true,
+      "error": ""
+    },
+    {
+      "id": "tool-bridge",
+      "label": "宿主依赖解析（工具桥接）",
+      "ok": true,
+      "error": ""
+    },
+    {
+      "id": "preset-entry",
+      "label": "预设注册与组合（含迁移）",
+      "ok": true,
+      "error": ""
+    },
+    {
+      "id": "model-call",
+      "label": "受控模型端点 → 无害工具调用",
+      "ok": true,
+      "error": ""
+    },
+    {
+      "id": "model-reject",
+      "label": "工具集外调用被拒绝",
+      "ok": true,
+      "error": ""
+    },
+    {
+      "id": "admin",
+      "label": "管理生命周期（应用/重复应用/恢复）",
+      "ok": true,
+      "error": ""
+    },
+    {
+      "id": "backup-faults",
+      "label": "备份/恢复故障注入",
+      "ok": true,
+      "error": ""
+    },
+    {
+      "id": "targets",
+      "label": "目标定位与适配状态",
+      "ok": true,
+      "error": ""
+    }
+  ],
+  "unmatched": [
+    {
+      "id": "#21",
+      "label": "BASH_TIMEOUT_RESTORE",
+      "keys": [
+        "base"
+      ],
+      "optional": false
+    },
+    {
+      "id": "#80",
+      "label": "MINIMAL_OFFICIAL_TOOLSET",
+      "keys": [
+        "preset-minimal",
+        "preset-sdk-minimal"
+      ],
+      "optional": true
+    },
+    {
+      "id": "#32",
+      "label": "WEB_SURFACE_IDENTITY_NEUTRAL",
+      "keys": [
+        "web-app-lib"
+      ],
+      "optional": true
+    },
+    {
+      "id": "#53",
+      "label": "WEB_SURFACE_PROHIBITION",
+      "keys": [
+        "web-app-lib"
+      ],
+      "optional": true
+    },
+    {
+      "id": "#77",
+      "label": "REWIND_DROP_SENT_ON_APPEND",
+      "keys": [
+        "conversation-client"
+      ],
+      "optional": true
+    }
+  ],
+  "notApplicable": [
+    {
+      "id": "#76",
+      "label": "PRESET_UNRESTRICTED_IDENTITY_STRIP",
+      "optional": true,
+      "evidence": [
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-commit\\home\\.agent-presets\\unrestricted\\agent.cordis.yml"
+      ]
+    },
+    {
+      "id": "#71",
+      "label": "LIANGSHEN_IDENTITY_LINE",
+      "optional": false,
+      "evidence": [
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-commit\\home\\.agent-presets\\liangshen\\agent.cordis.yml",
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-commit\\home\\profiles\\desktop\\node_modules\\@linxin666\\dsh-liangshen\\presets\\liangshen\\agent.cordis.yml",
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-commit\\home\\profiles\\web\\node_modules\\@linxin666\\dsh-liangshen\\presets\\liangshen\\agent.cordis.yml"
+      ]
+    },
+    {
+      "id": "#28",
+      "label": "LIANGSHEN_PHASE1_KEEP_INJECT",
+      "optional": true,
+      "evidence": [
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-commit\\home\\.agent-presets\\liangshen\\tool-bootstrap.mjs"
+      ]
+    },
+    {
+      "id": "#30",
+      "label": "HOOKS_CLAUDE_DENY_ALLOW",
+      "optional": true,
+      "evidence": [
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-commit\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-claude-code",
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-commit\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-claude-code",
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-commit\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-claude-code"
+      ]
+    },
+    {
+      "id": "#31",
+      "label": "HOOKS_CODEX_DENY_ALLOW",
+      "optional": true,
+      "evidence": [
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-commit\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-codex",
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-commit\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-codex",
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-commit\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-codex"
+      ]
+    },
+    {
+      "id": "#64",
+      "label": "HOOKS_STOP_STEER_NEUTRAL",
+      "optional": true,
+      "evidence": [
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-commit\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-claude-code",
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-commit\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-claude-code",
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-commit\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-claude-code"
+      ]
+    },
+    {
+      "id": "#65",
+      "label": "HOOKS_PRESTEP_REJECT_NEUTRAL",
+      "optional": true,
+      "evidence": [
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-commit\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-claude-code",
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-commit\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-claude-code",
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-commit\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-claude-code"
+      ]
+    },
+    {
+      "id": "preset-unrestricted",
+      "label": "未定位键",
+      "optional": true,
+      "evidence": [
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-commit\\home\\.agent-presets\\unrestricted\\agent.cordis.yml"
+      ]
+    },
+    {
+      "id": "preset-liangshen",
+      "label": "未定位键",
+      "optional": true,
+      "evidence": [
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-commit\\home\\.agent-presets\\liangshen\\agent.cordis.yml"
+      ]
+    },
+    {
+      "id": "preset-liangshen-pkg",
+      "label": "未定位键",
+      "optional": true,
+      "evidence": [
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-commit\\home\\profiles\\desktop\\node_modules\\@linxin666\\dsh-liangshen\\presets\\liangshen\\agent.cordis.yml",
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-commit\\home\\profiles\\web\\node_modules\\@linxin666\\dsh-liangshen\\presets\\liangshen\\agent.cordis.yml"
+      ]
+    },
+    {
+      "id": "user-approval-invariant",
+      "label": "未定位键",
+      "optional": true,
+      "evidence": [
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-commit\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh-user-approval\\lib\\invariant.js",
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-commit\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-user-approval\\lib\\invariant.js"
+      ]
+    },
+    {
+      "id": "liangshen-tool-bootstrap",
+      "label": "未定位键",
+      "optional": true,
+      "evidence": [
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-commit\\home\\.agent-presets\\liangshen\\tool-bootstrap.mjs"
+      ]
+    },
+    {
+      "id": "tool-web-nested",
+      "label": "未定位键",
+      "optional": true,
+      "evidence": [
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-commit\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-tool-web\\lib\\index.js"
+      ]
+    },
+    {
+      "id": "hooks-claude-code",
+      "label": "未定位键",
+      "optional": true,
+      "evidence": [
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-commit\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-claude-code",
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-commit\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-claude-code"
+      ]
+    },
+    {
+      "id": "hooks-claude-code-nested",
+      "label": "未定位键",
+      "optional": true,
+      "evidence": [
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-commit\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-claude-code"
+      ]
+    },
+    {
+      "id": "hooks-codex",
+      "label": "未定位键",
+      "optional": true,
+      "evidence": [
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-commit\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-codex",
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-commit\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-codex"
+      ]
+    },
+    {
+      "id": "hooks-codex-nested",
+      "label": "未定位键",
+      "optional": true,
+      "evidence": [
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-commit\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-codex"
+      ]
+    },
+    {
+      "id": "system-prompt-nested",
+      "label": "未定位键",
+      "optional": true,
+      "evidence": [
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-commit\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-system-prompt\\lib\\index.js"
+      ]
+    }
+  ],
+  "notExecuted": [
+    "真实 Electron 桌面进程内的插件加载（验证用宿主包以模块方式只读加载）",
+    "真实模型网络请求（受控端点只在本机回环，不写真实凭据）",
+    "Web / macOS / Linux 以及其他 DSH 版本"
+  ],
+  "commands": [
+    "node scripts/verify.mjs --stamp acceptance-commit",
+    "D:\\dev-runtime\\node\\node-v24.14.1-win-x64\\node.exe D:\\dsh\\local-plugins\\dsh-purge\\scripts\\acceptance.mjs --out docs\\compatibility --name rc5-acceptance --stamp acceptance-commit"
+  ],
+  "environment": {
+    "platform": "win32",
+    "arch": "x64",
+    "node": "24.14.1",
+    "electron": null,
+    "execPath": "D:\\dev-runtime\\node\\node-v24.14.1-win-x64\\node.exe",
+    "surface": "auto",
+    "homedir": "C:\\Users\\27591"
+  },
+  "report": {
+    "ok": true,
+    "knownFailures": []
+  }
+}

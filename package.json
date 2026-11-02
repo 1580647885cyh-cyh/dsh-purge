@@ -38,6 +38,7 @@
     "build:client": "node scripts/build-client.mjs",
     "verify": "node scripts/verify.mjs",
     "probe": "node scripts/probe.mjs",
+    "acceptance": "node scripts/acceptance.mjs",
     "check": "node scripts/check.mjs",
     "test": "node --test \"tests/**/*.test.js\"",
     "test:unit": "node --test tests/verify/isolate.test.js tests/verify/baseline.test.js tests/verify/report.test.js",
