@@ -145,6 +145,11 @@ DSH_HOME 里的已安装副本仍是旧写法时，报告只在「待自愈」�
 - 随 fd 修复暴露的必要路径缺陷：refreshStaleBaksForUpgrade 原先只看 dsh-purge 字面标记；agent-instructions 这类补丁把官方句子换成强句、不带该字串，备份真正落地后重复 apply 会把有效 bak 覆盖成已打补丁内容，revert 再也还原不回去。现按目标补丁的 marker/替换文本判断“文件已被我们打过”，实现与回归见 lib/core.js、hostfs.test.js，报告里的 reapply=0 / revert 还原 5 个是验收证据。
 - 不动工具 Schema/工具集合/预设：本票只加解析模块、fd 代理与验证入口字段。
 
+## 测试写盘约定
+
+- 测试与脚本只写 D 盘；临时目录用 tests/verify/helpers.js 的 tempDir()。
+- 任何会走到 installPreset 的测试必须用 withIsolatedHome()：它把 DSH_HOME、USERPROFILE、HOME 一起切到 D 盘临时目录，并在切换后断言 homedir() 真的在 D 盘。原因：installPreset 会把随包技能同步到 homedir()/.dsh 一份，只改 DSH_HOME 会写真实用户目录。
+
 ## 文件索引
 
 - lib/host-deps.js：宿主依赖解析（锚点候选 + 宿主包根身份核对）。

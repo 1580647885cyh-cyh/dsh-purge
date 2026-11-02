@@ -21,7 +21,8 @@
 - 预设与工具契约入口：`lib/verify/preset-entry.js`、`lib/verify/model-endpoint.js`
 - 测试：`tests/verify/`；`npm test`（无宿主时集成测试自动 skip）
 - 检查：`npm run check`（全量 `node --check` + 入口 import）；`npm run test:unit`
-- 钩子：`git config core.hooksPath .githooks` 启用；跳过单次用 `DSH_PURGE_SKIP_HOOKS=1`
+- 钩子：`git config core.hooksPath .githooks` 启用；跳过单次用 `DSH_PURGE_SKIP_HOOKS=1`；钩子跑 `npm run test:ci`（全量测试 + `--test-force-exit` + 单例超时），新增测试文件不用改钩子
+- 审查标准：`CODING_STANDARDS.md`（审查代理读；实现代理不需要）
 
 ## 常见改动从哪里开始
 

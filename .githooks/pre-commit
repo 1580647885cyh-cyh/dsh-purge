@@ -1,9 +1,13 @@
 #!/bin/sh
 # 启用：git config core.hooksPath .githooks
 # 跳过单次：DSH_PURGE_SKIP_HOOKS=1
+#
+# 跑全量测试（不是手挑几个文件）：新增测试文件不需要再改钩子。
+# test:ci 自带 --test-force-exit（泄漏句柄不再挂死提交）与 --test-timeout（单例卡住会报错）。
+# 没有桌面的机器上，集成测试会自己 skip。
 set -e
 if [ "${DSH_PURGE_SKIP_HOOKS:-}" = "1" ]; then
   exit 0
 fi
 node scripts/check.mjs
-node --test tests/verify/isolate.test.js tests/verify/baseline.test.js tests/verify/report.test.js
+npm run test:ci
