@@ -47,7 +47,9 @@ const fixture = noFixture
     shellVersion: hostInfo.shellVersion || "0.2.1-rc.5",
     asarPath: path.join(hostInstall.resourcesDir, "app.asar"),
   });
-console.error("[probe] 工作区 " + workspace.root + (fixture ? "（副本 " + fixture.source + "）" : "（未建副本）"));
+console.error("[probe] 工作区 " + workspace.root + (fixture
+  ? "（副本 " + fixture.source + (fixture.cache ? " · 缓存 " + (fixture.cache.hit ? "命中" : "重建") : "") + " · " + fixture.durationMs + " ms）"
+  : "（未建副本）"));
 
 const env = isolatedEnvironment(workspace, { installDir: workspace.install, hostBase: workspace.hostBase });
 const restore = applyProcessEnvironment(env);

@@ -49,6 +49,11 @@ if (args.json) {
     console.log("  基线 " + report.baseline.treeHash.slice(0, 16) + " · " + report.baseline.fileCount + " 文件 · 插件 " + (report.baseline.plugin ? report.baseline.plugin.version : "?") + " · 宿主 " + (report.baseline.host ? report.baseline.host.shellVersion : "?"));
     if (report.baseline.drift) console.log("  与上次基线：" + (report.baseline.drift.ok ? "一致" : "有差异"));
   }
+  if (report.fixture) {
+    console.log("  fixture：" + report.fixture.source
+      + (report.fixture.cacheKey ? "（缓存" + (report.fixture.cacheHit ? "命中" : "重建") + " " + report.fixture.cacheKey + "）" : "")
+      + " · " + report.fixture.durationMs + " ms · " + report.fixture.packages + " 个包");
+  }
   if (report.hostEntry) {
     console.log("  宿主入口：" + (report.hostEntry.ok ? "ok" : "failed") + " · 提示词 " + (report.hostEntry.prompt ? report.hostEntry.prompt.length : 0) + " 字符 · 工具 " + (report.hostEntry.tools || []).map((tool) => tool.name).join(","));
   }

@@ -76,6 +76,13 @@ test("隔离宿主加载与请求准备：真实宿主包 + 插件工具契约",
     assert.equal(report.baseline.sealCheck.ok, true);
     assert.equal(report.baseline.plugin.version, "1.1.71");
     assert.equal(report.baseline.host.shellVersion, "0.2.1-rc.5");
+    // #11：fixture 只能来自 asar 或 fixture 缓存，不能拿真实安装（可能已打补丁）充数；
+    // 缓存落在工作区外，因此不进基线、不进工作区快照。
+    assert.ok(["asar", "cache"].includes(report.fixture.source), "fixture 来源：" + report.fixture.source);
+    assert.match(report.fixture.cacheDir, /_fixture-cache[\\/]asar-\d+-\d+$/);
+    assert.ok(fs.existsSync(report.fixture.cacheDir), "fixture 缓存目录应已落盘：" + report.fixture.cacheDir);
+    assert.equal(isWithin(report.fixture.cacheDir, report.workspace.root), false, "缓存目录不属于工作区");
+    assert.ok(report.fixture.durationMs >= 0);
     for (const host of report.admin.hosts) {
       assert.equal(isWithin(host, report.workspace.root), true, "管理操作只能命中隔离宿主：" + host);
     }
