@@ -4,6 +4,15 @@
 
 目标是用当前真实源码与当前安装的 Windows 官方桌面 DSH 0.2.1-rc.5，建立一条可重复、可核对、只写 D 盘的最小验证路径；不在本入口修复后续任务负责的兼容缺陷。
 
+## 先选入口
+
+| 你要做的事 | 跑哪个 | 看哪一节 |
+| --- | --- | --- |
+| 改补丁/适配行为，要全量取证 | npm run verify | 入口一到五（报告在 out/report.md） |
+| 临时探查、跑一次性脚本、调 lib/core.js | npm run probe <file> | 隔离边界 + 文件索引（用法见 scripts/probe.mjs 头注释） |
+| 交付/升级后的整体验收与兼容记录 | npm run acceptance | 入口六（产物在 docs/compatibility/） |
+| 提交前机械检查 | npm run check / npm test | 钩子与测试 |
+
 ## 运行方式
 
 ~~~powershell

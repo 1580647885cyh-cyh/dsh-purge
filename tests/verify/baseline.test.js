@@ -9,6 +9,7 @@ import {
   environmentFingerprint,
   gitRelation,
   hostFingerprint,
+  listSourceFiles,
   pluginFingerprint,
   readJson,
   sealBaseline,
@@ -59,6 +60,24 @@ test("sealBaseline 写快照，verifyBaseline 检测改动/新增/删除", () =>
   assert.deepEqual(drift.changed.map((item) => item.path), ["lib/index.js"]);
   assert.deepEqual(drift.added, ["lib/added.js"]);
   assert.deepEqual(drift.removed, ["package.json"]);
+});
+
+test("验收产物不进保护基线：docs/compatibility 被排除在清单外（#8）", () => {
+  const root = tempSource("compat");
+  try {
+    fs.mkdirSync(path.join(root, "docs", "compatibility"), { recursive: true });
+    fs.writeFileSync(path.join(root, "docs", "compatibility", "rc5-acceptance.md"), "# 记录\n");
+    fs.writeFileSync(path.join(root, "docs", "guide.md"), "普通文档\n");
+    const paths = listSourceFiles(root);
+    assert.ok(paths.includes("docs/guide.md"), "普通文档仍要进基线");
+    assert.equal(
+      paths.some((item) => item.startsWith("docs/compatibility/")),
+      false,
+      "验收记录是产物不是待恢复源码，算进去会让 treeHash 每次补记录都变（" + JSON.stringify(paths) + "）",
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("pluginFingerprint 读取当前维护版版本与更新锁", () => {
