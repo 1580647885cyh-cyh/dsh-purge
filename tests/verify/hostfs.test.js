@@ -3,8 +3,9 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { hostFs } from "../../lib/extract-asar.js";
-import { patchShim, refreshStaleBaksForUpgrade, shimFileStatus } from "../../lib/core.js";
-import { tempDir } from "./helpers.js";
+import { patchShim, refreshStaleBaksForUpgrade, revertAll, shimFileStatus } from "../../lib/core.js";
+import { upgradedPresetFixture } from "../../lib/verify/backup-faults.js";
+import { tempDir, withIsolatedHome } from "./helpers.js";
 
 /**
  * 文件探测与管理操作里的文件描述符路径。
@@ -76,6 +77,71 @@ test("无害文本入口、普通文件和非文本文件在管理操作中被�
     fs.rmSync(dir, { recursive: true, force: true });
     fs.rmSync(home, { recursive: true, force: true });
   }
+});
+
+test("目标态成立（官方本就 fetch: true）不算我们打过补丁：#7 的过期 bak 必须刷新", () => {
+  const aiBase = tempDir("goal-state-");
+  try {
+    const dir = path.join(aiBase, "dsh-web-app", "presets");
+    fs.mkdirSync(dir, { recursive: true });
+    const preset = path.join(dir, "standard.patch.yml");
+    const upgraded = upgradedPresetFixture();
+    fs.writeFileSync(preset, upgraded, "utf8");
+    fs.writeFileSync(preset + ".dshpurge.bak", "# old host build\n", "utf8");
+
+    const refreshed = refreshStaleBaksForUpgrade(aiBase);
+    assert.deepEqual(refreshed, [preset], "只满足目标态的官方新文件也要刷新 bak");
+    assert.equal(fs.readFileSync(preset + ".dshpurge.bak", "utf8"), upgraded, "bak 要刷新成当前官方内容");
+  } finally {
+    fs.rmSync(aiBase, { recursive: true, force: true });
+  }
+});
+
+test("0 字节备份不写回目标：revert 报 backup_empty 且文件保持原样", async () => {
+  await withIsolatedHome(async () => {
+    const aiBase = tempDir("empty-bak-");
+    try {
+      const dir = path.join(aiBase, "dsh-agent-instructions", "lib");
+      fs.mkdirSync(dir, { recursive: true });
+      const file = path.join(dir, "index.js");
+      // 已打补丁的版本（带我们的标记）：这类文件不会被 refresh 当成"宿主升级"而重建 bak，
+      // 所以 0 字节 bak 必须由 revert 的守卫挡住。
+      const content = "const OFFICIAL = true; // [dsh-purge] marker\n";
+      fs.writeFileSync(file, content, "utf8");
+      fs.writeFileSync(file + ".dshpurge.bak", "", "utf8");
+
+      const result = await revertAll(aiBase);
+      assert.equal(fs.readFileSync(file, "utf8"), content, "空备份不能清空有效目标");
+      assert.deepEqual(result.reverted, [], "没有文件应被还原");
+      assert.ok(
+        result.errors.some(([fp, code]) => fp === file && code === "backup_empty"),
+        "错误路径要明确报出来：" + JSON.stringify(result.errors),
+      );
+    } finally {
+      fs.rmSync(aiBase, { recursive: true, force: true });
+    }
+  });
+});
+
+test("还原不会把旧宿主的过期备份写回新宿主", async () => {
+  await withIsolatedHome(async () => {
+    const aiBase = tempDir("stale-revert-");
+    try {
+      const dir = path.join(aiBase, "dsh-agent-instructions", "lib");
+      fs.mkdirSync(dir, { recursive: true });
+      const file = path.join(dir, "index.js");
+      const upgraded = "// official new host 0.2.2\n";
+      fs.writeFileSync(file, upgraded, "utf8");
+      fs.writeFileSync(file + ".dshpurge.bak", "// official old host 0.2.0\n", "utf8");
+
+      const result = await revertAll(aiBase);
+      assert.equal(fs.readFileSync(file, "utf8"), upgraded, "revert 不得把旧版本写回新宿主");
+      assert.deepEqual(result.reverted, [], "刷新过期的文件不该进入 reverted");
+      assert.equal(fs.readFileSync(file + ".dshpurge.bak", "utf8"), upgraded, "bak 应刷新成当前内容");
+    } finally {
+      fs.rmSync(aiBase, { recursive: true, force: true });
+    }
+  });
 });
 
 test("已打补丁的宿主文件不会被误判为宿主升级，bak 保持原样", () => {

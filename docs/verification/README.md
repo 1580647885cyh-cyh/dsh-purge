@@ -85,6 +85,19 @@ node scripts/verify.mjs --json # 输出机器可读报告
 
 子级预设的挂载代价：registry 会为红队模式和 redteam-worker 各挂一份组合（两者同一 scope 机制、各在自己的 isolate realm 里发布服务，因此不会在 root realm 重复注册；预设头部对“服务行必须带 isolate realm”的约定不变）。
 
+### 入口三附加：备份/恢复故障注入（#7）
+
+模块：lib/verify/backup-faults.js（在管理生命周期跑完之后执行，同一隔离副本）。
+
+- 小副本：从刚 revert 干净的隔离副本复制真实官方样本（agent-instructions、standard preset）到 `out/backup-fixture`，
+  故障注入只动这份副本，不污染管理生命周期与入口五的现场。
+- 完整备份：**备份之前**先记下目标原文 → `backupAll` → `applyPatches` → `revertAll`，还原结果必须与那份原文逐字节一致（不拿 bak 自证）。
+- 官方标记识别：官方原文自带 #2/#3/#50 的「完成标记」，放回官方文件 + 旧 bak 后，`refreshStaleBaksForUpgrade` 仍必须刷新 bak（这类补丁带 `provenance: false`，不能充当「我们改过」的证据）。
+- 过期备份刷新：把目标换成「官方新版」内容（满足 #24 的目标态、没有我们的标记），bak 改成旧版本；刷新后的 bak 必须与新版内容逐字节一致。
+- 过期备份不写回：随后 `revertAll` 后，目标仍必须与新版内容逐字节一致。
+- 不完整备份：目标有效、bak 为 0 字节；`revertAll` 必须保留目标字节，并在 errors 里报 `backup_empty`。
+- 五个案例全过才算管理入口通过；失败即「验证不通过」。
+
 ## 入口五：目标定位与适配状态（#6）
 
 模块：lib/verify/targets.js、lib/verify/target-entry.js。
@@ -120,6 +133,7 @@ node scripts/verify.mjs --json # 输出机器可读报告
 - 模板渲染契约任一案例失败、完整提示词预设任一核对项失败（#5 起是硬契约，不再记成已知故障）。
 - 受控请求的系统消息没命中插件正文，或运行上下文消息没带工作目录。
 - 宿主 Schema 校验从通过变成失败。
+- 备份/恢复故障注入任一案例失败：完整备份不能逐字节还原、过期 bak 未刷新、revert 把旧版本写回新宿主、0 字节 bak 覆盖有效目标。
 - apply 在未打补丁副本上没有任何文件改动。
 - 重复 apply 再次改动文件。
 - 真实安装目标文件在管理操作期间发生变化。
@@ -154,6 +168,9 @@ DSH_HOME 里的已安装副本仍是旧写法时，报告只在「待自愈」�
 
 #6 起，目标定位与适配状态也是硬契约：假成功、状态超前、重复应用仍在改文件、运行结果证明失败，
 任一条出现即「验证不通过」；缺席的可选键在报告里逐条列出搜索位置，属于不适用而不是失败。
+
+#7 起，备份/恢复的故障注入也是硬契约：完整备份还原、过期备份刷新、0 字节备份拒绝写回，
+任一案例失败即「验证不通过」（见入口三的 backupFaults）。
 
 ## 回归记录（#5 恢复模板渲染和完整提示词预设运行）
 
@@ -190,6 +207,42 @@ DSH_HOME 里的已安装副本仍是旧写法时，报告只在「待自愈」�
   working-directory，而未打补丁的真实宿主在同一装配里丢掉注入段；桌面壳 close 回调未打补丁时 code=0 报错、
   打补丁后不报错、code=3 仍报错、重复应用 0 改动；副本上关掉 preset 的 fetch 后，公开 purge_apply 重新打开
   并写回标记，重复应用不追加。
+
+## 回归记录（#7 隔离宿主应用与跨版本恢复的完整性）
+
+- 故障一（旧备份写回新宿主）：refreshStaleBaksForUpgrade 原用 patchApplied 判断「是不是我们打过的版本」。
+  两处误判都复现了：(a) #6 的 settledWhen 让官方新 preset（自带 `fetch: true`）被判成已打补丁；
+  (b) #2/#3/#50 的「完成标记」就是官方原文，官方文件本身就带。两种情况下过期 bak 都不刷新，
+  revert 随后把旧宿主内容写回。修复：改用 patchOwnMarkPresent，并给这三类补丁标 `provenance: false`。
+- 故障二（0 字节备份覆盖目标）：apply 中断会留下 0 字节 bak 占位符；revertAll 只比较字节是否相同，
+  不校验 bak 是否有效，直接把有效目标截成 0 字节（复现：60147 → 0）。
+- 修复：
+  - `looksPatchedAlready` 改用 `patchOwnMarkPresent`（只看我们写进去的标记/替换文本），目标态不再算「打过补丁」；
+  - `provenance: false` 标在 #2/#3/#50 上：它们的"标记"是官方句子，不能证明文件被我们改过；
+  - `revertAll` 开头先 `refreshStaleBaksForUpgrade`：升级后直接点还原也不会写回旧版本；
+  - `revertAll` 对 `size <= 0` 的 bak 拒绝写回，记 `backup_empty` 错误，目标保持原样。
+- 通过证据：入口三故障注入 5/5（full-backup / official-mark-refresh / stale-bak-refresh / stale-bak-not-written-back / empty-backup）；
+  管理生命周期 apply 47 个文件、52 个备份、revert 全部还原；真实安装 55 个目标文件未改动。
+- 边界之一（还原前的刷新会保守处理「用户手改过的目标」）：revert 前的 `refreshStaleBaksForUpgrade` 无法区分
+  「宿主升级」和「用户改过文件」，两者都会被当作新版内容而刷新 bak——这与 apply 时的既有假设一致，代价是这类
+  文件的还原点变成当前内容（no-op），不会产生数据损坏；没有证据支持做更激进的判断，故记录不修。
+- 边界之二：只有 #21 BASH_TIMEOUT_RESTORE 没有自证标记（它的产物就是官方值本身）。
+  若历史上它把插件抬起过的 timeout 恢复成官方值，revert 前的刷新会把该文件的 bak 刷成当前内容，
+  还原因此变成 no-op——不产生数据损坏，当前基线也不会进入这个状态。
+
+## 本票验收对应（#7 隔离宿主应用与跨版本恢复）
+
+- 完整备份 / 过期基线 / 不完整备份的代表性案例：入口三的 `backupFaults` 三条，加正常 apply/revert/重复应用。
+- 应用与重复应用稳定、状态与磁盘一致：管理生命周期记录 apply/reapply/revert 三次整树 diff（重复应用 0 改动）；
+  #6 的逐文件核对同时保证状态不靠叠加内容维持成功。
+- 恢复使用完整且属于对应宿主的基线：过期备份案例要求 bak 先刷新成当前官方内容，revert 不得写回旧版本；
+  0 字节备份被拒绝并报错。
+- 基线识别覆盖原有处理：`looksPatchedAlready` 只认我们写进去的标记/替换文本（含无字面 marker 的补丁），
+  不再被目标态误判；用户 profile patch 层仍不建 bak、不还原。
+- 错误路径明确、目标不被留成不完整内容：`backup_empty` 记入 revert 的 errors，目标字节不变。
+- 只纳入当前目标相关缺陷：本轮只改 `looksPatchedAlready` 与 `revertAll`（加刷新与空备份守卫），
+  未引入安装器/下载器或生命周期重构；未复现的候选（例如「恢复会删除目标」）保持原语义并有测试。
+- 写入范围：故障注入全部在 D 盘隔离副本；真实安装、保护基线、原始独立备份未改动。
 
 ## 本票验收对应（#6 目标定位与适配状态）
 
@@ -247,6 +300,7 @@ DSH_HOME 里的已安装副本仍是旧写法时，报告只在「待自愈」�
 - lib/verify/asar.js：从 app.asar 解出未打补丁宿主文件。
 - lib/verify/host-entry.js：真实宿主包加载、请求准备捕获、预设静态审计。
 - lib/verify/admin-entry.js：隔离副本管理生命周期、文件描述符探针、真实安装守卫。
+- lib/verify/backup-faults.js：备份/恢复故障注入（完整备份 / 过期备份 / 0 字节备份）。
 - lib/verify/targets.js：目标定位与逐文件目标态判定（含不适用键的搜索证据）。
 - lib/verify/target-entry.js：入口五编排、完整提示词装配与桌面壳 close 回调的运行结果证明。
 - lib/verify/report.js：报告构建与 Markdown 渲染。

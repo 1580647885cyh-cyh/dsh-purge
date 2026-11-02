@@ -96,6 +96,14 @@ test("隔离宿主加载与请求准备：真实宿主包 + 插件工具契约",
     assert.ok(report.admin.backupsCreated > 0, "apply 应产生 .dshpurge.bak");
     assert.equal(report.admin.revertRestored, true);
 
+    // #7：备份/恢复的故障注入（完整备份 / 过期备份 / 0 字节备份）全部通过。
+    assert.equal(report.admin.backupFaults.ok, true, JSON.stringify(report.admin.backupFaults));
+    assert.deepEqual(
+      report.admin.backupFaults.cases.map((item) => item.id),
+      ["full-backup", "official-mark-refresh", "stale-bak-refresh", "stale-bak-not-written-back", "empty-backup"],
+    );
+    assert.equal(report.admin.backupFaults.cases.every((item) => item.ok), true);
+
     // #3：隔离桌面布局能解析宿主依赖，真实宿主能把桥接模块真正加载起来。
     const bridge = report.hostEntry.toolBridge;
     assert.equal(bridge.ok, true, JSON.stringify(bridge));
