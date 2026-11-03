@@ -171,7 +171,10 @@ function addedDocCountLines() {
       const consoleCount = /\b(?:applied|already|drifted)\b\s*[=:]\s*\d/.test(text);
       const driftCount = /漂移\s*[=:：]\s*\d/.test(text);
       const testCount = /测试\s*\d+\s*条/.test(text);
-      if (consoleCount || driftCount || testCount) hits.push({ rel: file, line, text: text.trim().slice(0, 100) });
+      // 2026-11-03 A7 retro：记录里出现过 “1 pass”“123 个文件、2 个入口”，旧规则放过了。
+      const passCount = /\b\d+\s*pass\b/i.test(text);
+      const artifactCount = /\b\d+\s*个(?:文件|入口|案例|测试)\b/.test(text);
+      if (consoleCount || driftCount || testCount || passCount || artifactCount) hits.push({ rel: file, line, text: text.trim().slice(0, 100) });
     }
     line += 1;
   }

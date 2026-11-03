@@ -15,6 +15,7 @@
 ## 仓库导航
 
 - **验证入口**：改宿主适配、提示词/预设注册或管理生命周期前，先读 `docs/verification/README.md`；隔离验证用 `npm run verify`；任何要 import `lib/core.js` 做探查/实验的脚本一律 `npm run probe <file>`（自动切隔离环境 + 宿主预检 + 真实安装只读核对），不要在真实环境直接调 apply/revert。
+- **桌面/重启探针**：任何会启动/结束桌面进程、或调用 `restartOfficialHarness` / `restart-desktop.js` 的探针，一律走 `npm run probe`，并先读 `docs/verification/probe-gotchas.md`（asar 前置 / 路径过滤 / detached PowerShell / cwd 缓存等本机坑）。
 - **脚本参数**：带参数的脚本直接 `node scripts/xxx.mjs …`（如 `node scripts/acceptance.mjs --out docs/compatibility --name rc5-acceptance`）；`npm run xxx -- --flag` 在本机 npm（PowerShell shim，实测 11.21.0）下会把旗标吃掉、只把值传进来，脚本会静默走默认值（#22 复盘）。
 - **代码地图**：找模块入口、补丁管线、宿主发现和测试位置，读 `docs/CODE-MAP.md`。
 - **宿主契约**：改宿主包调用、预设注册或工具 Schema 前，先读 `docs/host-contract.md`。

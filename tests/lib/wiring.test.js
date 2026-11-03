@@ -5,7 +5,9 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import * as core from "../../lib/core.js";
+import { ASAR_SWAP_PS1, officialRestartScript } from "../../lib/desktop.js";
 import { EXIT_LEDGER_MAX_BYTES, EXIT_LEDGER_MAX_ENTRIES } from "../../lib/exit-ledger.js";
+import { isWshAscii } from "../../lib/official-update.js";
 import { DESKTOP_EXIT_TRACE_SOURCES_CODE, EXIT_TRACE_CLOSE_MARKER, EXIT_TRACE_SOURCES_BEGIN } from "../../lib/desktop-exit-trace.js";
 import * as model from "../../lib/patch-model.js";
 import { tempDir, withIsolatedHome } from "../verify/helpers.js";
@@ -304,29 +306,31 @@ test("接线：core 的 apply/status 依赖的模型函数确实可调用", () =
   }
 });
 
-test("接线：A7 三条换包路径都必须先 main、确认消失、再挪 asar，失败时拉起原版", () => {
-  const desktopSrc = readFileSync(path.join(repoRoot, "lib", "desktop.js"), "utf8");
-  const ps1 = desktopSrc.slice(desktopSrc.indexOf("const ASAR_SWAP_PS1 = ["), desktopSrc.indexOf("const ASAR_RENAME_WHEN_IDLE_PS1 = ["));
-  const wscript = desktopSrc.slice(desktopSrc.indexOf("function officialRestartScript("), desktopSrc.indexOf("function systemPromptFiles("));
+test("生成脚本：wscript 保持 ASCII / 失败分支拉起原版；PS1 的 Move-Item 必须 -ErrorAction Stop", () => {
+  const body = officialRestartScript("C:\\fixture\\DeepSeek Harness.exe", "C:\\fixture\\resources\\app.asar", "D:\\fixture\\home");
+  assert.equal(isWshAscii(body), true, "wscript 生成体必须保持 ASCII，否则 isWshAscii=false 会静默回落 PowerShell");
+  for (const needle of [
+    "mainPids",
+    "main left",
+    "fso.MoveFile(asar, bak)",
+    "rename failed; relaunching original",
+    "startExe('relaunched original')",
+    "startExe('started')",
+    "if (!fso.FileExists(asar)) { renamed = true;",
+  ]) {
+    assert.ok(body.includes(needle), "wscript 生成体缺少：" + needle);
+  }
+  assert.equal(body.includes("rename failed; not starting"), false, "wscript 不能再留 not starting");
 
-  // wscript：mainPids / startExe / 失败分支；顺序由 desktop-swap harness 的日志行为证明，这里只钉接线。
-  assert.ok(wscript.includes("var mains = mainPids();"), "wscript 必须显式找 main");
-  assert.ok(wscript.includes("main left"), "wscript 必须确认 main 消失");
-  assert.ok(wscript.includes("fso.MoveFile(asar, bak)"), "wscript 必须保留挪 asar");
-  assert.ok(wscript.includes("rename failed; relaunching original"), "wscript 的失败分支必须拉起原版");
-  assert.ok(wscript.includes("startExe('relaunched original')"), "wscript 的失败分支必须启动 exe");
-  assert.ok(wscript.includes("startExe('started')"), "wscript 的成功分支必须启动 exe");
-  assert.equal(wscript.includes("rename failed; not starting"), false, "wscript 不能再留 not starting");
+  const moves = ASAR_SWAP_PS1.split(/\r?\n/).filter((line) => line.includes("Move-Item"));
+  assert.ok(moves.length > 0, "PS1 必须有 Move-Item");
+  assert.deepEqual(moves.filter((line) => !line.includes("-ErrorAction Stop")), [], "PS1 的每个 Move-Item 都必须 -ErrorAction Stop");
+  assert.ok(ASAR_SWAP_PS1.includes("Get-MainProcs"), "PS1 必须显式找 main");
+  assert.ok(ASAR_SWAP_PS1.includes("Set-Content -LiteralPath $lock"), "PS1 失败时保留 .rename-pending");
+  assert.equal(ASAR_SWAP_PS1.includes("$moved"), false, "PS1 的 if/else 已收敛成无条件启动");
+});
 
-  // PowerShell：先 main，确认全清，再挪；Move-Item 必须让 catch 真正可到达；尾部无条件启动（失败=原版）。
-  assert.ok(ps1.includes("Get-MainProcs"), "PS1 必须显式找 main");
-  assert.ok(ps1.includes("Move-Item -LiteralPath $AsarPath -Destination $bak -Force -ErrorAction Stop"), "PS1 的 Move-Item 必须 -ErrorAction Stop，否则失败分支永远走不到");
-  assert.ok(ps1.includes("Start-Process -FilePath $ExePath"), "PS1 必须启动 exe（挪动了=新布局，没挪动=原版）");
-  assert.ok(ps1.includes("Set-Content -LiteralPath $lock"), "PS1 失败时保留 .rename-pending（下一次 Apply 重试）");
-  assert.equal(ps1.includes("$moved"), false, "PS1 的 if/else 已收敛成无条件启动");
-  assert.ok(ps1.includes("if (@(Get-HarnessProcs).Count -eq 0) { Start-Process"), "PS1 启动后要核对并重试");
-
-  // helper：路径过滤 + main-first；失败分支从 not relaunching 改成 relaunch original，并核对启动结果。
+test("接线：A7 helper 必须按安装路径过滤、先 main、失败时拉起原版并核对启动", () => {
   const helperSrc = readFileSync(path.join(repoRoot, "lib", "restart-desktop.js"), "utf8");
   assert.ok(helperSrc.includes("function mainProcPids"), "helper 必须显式找 main");
   assert.ok(helperSrc.includes("ExecutablePath"), "helper 的 win32 进程选择必须按安装路径过滤（不再按镜像名）");
@@ -334,4 +338,20 @@ test("接线：A7 三条换包路径都必须先 main、确认消失、再挪 as
   assert.ok(helperSrc.includes("asar still sealed; relaunching original"), "helper 的失败分支必须拉起原版");
   assert.equal(helperSrc.includes("asar still sealed; not relaunching"), false, "helper 不能再留 not relaunching");
   assert.ok(helperSrc.includes("relaunch did not stay alive"), "helper 要核对启动结果");
+});
+
+test("接线：lib/verify 的 prove* 必须被入口五/run.js 引用，不能只被测试读", () => {
+  const verifyDir = path.join(repoRoot, "lib", "verify");
+  const wired = ["target-entry.js", "run.js"]
+    .map((name) => readFileSync(path.join(verifyDir, name), "utf8"))
+    .join("\n");
+  const missing = [];
+  for (const entry of fs.readdirSync(verifyDir)) {
+    if (!entry.endsWith(".js")) continue;
+    const text = readFileSync(path.join(verifyDir, entry), "utf8");
+    for (const match of text.matchAll(/^export\s+(?:async\s+)?function\s+(prove[A-Za-z0-9_$]*)/gm)) {
+      if (!new RegExp("\\b" + match[1] + "\\b").test(wired)) missing.push(entry + ":" + match[1]);
+    }
+  }
+  assert.deepEqual(missing, [], "这些 verify 探针没有被入口五/run.js 引用：" + missing.join(", "));
 });

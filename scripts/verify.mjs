@@ -26,6 +26,7 @@ const result = await runVerification({
   prune: args.prune !== false,
   retentionKeep: args.retentionKeep,
   only: args.only,
+  skipSwap: args.skipSwap,
   logger: (stage, detail) => console.error("[" + stage + "] " + detail),
 });
 
@@ -36,6 +37,8 @@ if (args.json) {
   console.log("dsh-purge 隔离验证：" + (report.ok ? "通过" : "未通过")
     + (report.partial ? "（部分入口：" + report.partial.stages.join(",") + "）" : ""));
   if (args.onlyInvalid) console.log("  --only 只支持：" + VERIFY_ONLY_STAGES.join(",") + "（忽略 " + args.onlyInvalid + "）");
+  if (args.skipSwap && args.only === "targets") console.log("  换包 harness：跳过（--skip-swap；完整 verify 仍会跑）");
+  if (args.skipSwap && args.only !== "targets") console.log("  --skip-swap 只在 --only targets 下生效（整轮 verify 仍跑换包 harness）");
   if (report.baseline) {
     console.log("  基线 " + report.baseline.treeHash.slice(0, 16) + " · " + report.baseline.fileCount + " 文件 · 插件 " + (report.baseline.plugin ? report.baseline.plugin.version : "?") + " · 宿主 " + (report.baseline.host ? report.baseline.host.shellVersion : "?"));
     if (report.baseline.drift) console.log("  与上次基线：" + (report.baseline.drift.ok ? "一致" : "有差异"));

@@ -27,13 +27,14 @@
 - 备份/恢复故障注入（#7）：`lib/verify/backup-faults.js`（完整备份 / 过期备份 / 0 字节备份），由入口三调用
 - NEXT 安装树 fixture 与入口五四事实（#24）：`lib/verify/desktop-next.js`
 - 桌面退出留痕 harness（#25 / #26）：`lib/verify/exit-trace.js`（模块作用域求值 + 四个来源事件替身 + episode 合并 + 拔痕对照 + purge_status 读侧）
+- 桌面换包 harness（A7 / #27）：`lib/verify/desktop-swap.js`（假安装树 + 真实 wscript/文件锁；入口五 `targets.runtime.desktopSwap`）
 - 参数解析（#13）：`lib/verify/cli-args.js`（`scripts/verify.mjs` 的参数契约，含 `--keep` / `--no-prune`）
 - 验收入口参数（#22 复盘）：`lib/verify/acceptance-args.js`（`scripts/acceptance.mjs` 的 `--out` / `--name` / `--stamp`；
   位置参数 = npm 吞掉旗标后留下的值，当用法错误处理）
 - 工作区清理（#13）：`lib/verify/retention.js`（只清 `<stamp>` / `probe-<stamp>`，本轮与在跑的不清，释放量进报告）
 - fixture 缓存（#11）：`lib/verify/fixture-cache.js`（键 = app.asar size+mtime；命中整棵复制、未命中从 asar 解；缺包/损坏自动重建）
-- 隔离探针：`scripts/probe.mjs`（`npm run probe <file>`，切环境 + 宿主预检 + 真实安装只读核对）
-- 只跑入口五：`node scripts/verify.mjs --only targets`（~35 s，跳过宿主/预设/模型/管理入口；报告写明只跑了哪一段）
+- 隔离探针：`scripts/probe.mjs`（`npm run probe <file>`，切环境 + 宿主预检 + 真实安装只读核对）；写探针前读 `docs/verification/probe-gotchas.md`
+- 只跑入口五：`node scripts/verify.mjs --only targets`（约 70 s，含桌面换包 harness；加 `--skip-swap` 约 35 s，仅迭代用；报告写明只跑了哪一段）
 - 读报告字段：`node scripts/report-fields.mjs [latest|<stamp>|<report.json>] <点路径…>`（`lib/verify/report-fields.js`），取不到的字段进 `missing`
 - 验收与兼容记录（#8）：`scripts/acceptance.mjs`（`npm run acceptance`）、`lib/verify/acceptance.js`、`docs/compatibility/`
 - 预设与工具契约入口：`lib/verify/preset-entry.js`、`lib/verify/model-endpoint.js`

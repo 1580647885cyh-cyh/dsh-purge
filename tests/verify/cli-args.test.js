@@ -28,6 +28,14 @@ test("--only 只认已开放的阶段（--only targets），别的一律忽略�
   assert.equal(unknown.onlyInvalid, "admin");
 });
 
+test("--skip-swap 只置位，不吞后面的参数（仅 --only targets 迭代用）", () => {
+  const args = parseVerifyArgs(["--only", "targets", "--skip-swap"], { defaultRoot: "D:/repo" });
+  assert.equal(args.skipSwap, true);
+  assert.equal(args.only, "targets");
+  assert.equal(parseVerifyArgs(["--skip-swap"], { defaultRoot: "D:/repo" }).skipSwap, true);
+  assert.equal(parseVerifyArgs([], { defaultRoot: "D:/repo" }).skipSwap, undefined);
+});
+
 test("--no-prune 关掉清理；--stamp / --out-root / --no-seal / --json 照旧", () => {
   const args = parseVerifyArgs(["--no-prune", "--stamp", "s1", "--out-root", "D:/o", "--no-seal", "--json"], { defaultRoot: "D:/repo" });
   assert.equal(args.prune, false);

@@ -23,10 +23,10 @@ npm test                       # 单元测试 + 隔离集成测试
 node scripts/verify.mjs --json # 输出机器可读报告
 ~~~
 
-可用参数：--root（插件源码根）、--install（桌面安装目录）、--out-root（工作区根）、--baseline-dir（基线目录）、--stamp（固定工作区名）、--no-seal（只校验不封存）。
+可用参数：--root（插件源码根）、--install（桌面安装目录）、--out-root（工作区根）、--baseline-dir（基线目录）、--stamp（固定工作区名）、--no-seal（只校验不封存）、--skip-swap（仅 `--only targets` 迭代时跳过换包 harness）。
 
 只改入口五时用 `node scripts/verify.mjs --only targets`：跳过宿主加载、预设、受控端点与管理生命周期，只跑
-目标定位与适配状态（含逐文件核对与运行结果证明、桌面换包 harness），本机实测约 70 s；报告写「范围：只跑了 targets」，
+目标定位与适配状态（含逐文件核对与运行结果证明、桌面换包 harness），本机实测约 70 s；加 `--skip-swap` 约 35 s（仅迭代用，整轮 verify 仍跑换包 harness）；报告写「范围：只跑了 targets」，
 结论只对跑过的阶段负责。整轮结论仍以不带 `--only` 的那一轮为准。
 
 报告字段用 `node scripts/report-fields.mjs [latest|<stamp>|<report.json>] <点路径…>` 读，不要现写一次性脚本、

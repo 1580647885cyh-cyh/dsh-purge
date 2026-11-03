@@ -16,6 +16,8 @@ scripts/test-*.mjs
 .review-*.txt
 # 本地代码索引（codegraph init 生成，随时可重建）
 .codegraph/
+# PowerShell 模块缓存（探针 cwd 落到仓库时的副产物）
+Microsoft/
 dsh-redteam-mode-main/
 /1
 
