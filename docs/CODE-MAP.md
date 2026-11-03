@@ -28,7 +28,8 @@
 - 隔离探针：`scripts/probe.mjs`（`npm run probe <file>`，切环境 + 宿主预检 + 真实安装只读核对）
 - 验收与兼容记录（#8）：`scripts/acceptance.mjs`（`npm run acceptance`）、`lib/verify/acceptance.js`、`docs/compatibility/`
 - 预设与工具契约入口：`lib/verify/preset-entry.js`、`lib/verify/model-endpoint.js`
-- 测试：`tests/verify/`（验证设施）、`tests/lib/`（补丁模型 / 表校验 / 接线检查）；`npm test`（无宿主时集成测试自动 skip）
+- 测试：`tests/verify/`（验证设施）、`tests/lib/`（补丁模型 / 表校验 / 接线检查）、`tests/archive/`（原版与能力面守卫）；`npm test`（无宿主时集成测试自动 skip）
+- 原版 1.1.71 与能力指纹：`docs/original-1.1.71.sha256.json`（108 文件清单）、`docs/original-1.1.71.capability.json`（工具/预设行/技能/内嵌提示词哈希）；守卫是 `tests/archive/original-1.1.71.test.js`
 - 检查：`npm run check`（全量 `node --check` + 入口 import）；`npm run test:unit`
 - 钩子：`git config core.hooksPath .githooks` 启用；跳过单次用 `DSH_PURGE_SKIP_HOOKS=1`；钩子跑 `npm run test:ci`（全量测试 + `--test-force-exit` + 单例超时），新增测试文件不用改钩子
 - 审查标准：`CODING_STANDARDS.md`（审查代理读；实现代理不需要）
