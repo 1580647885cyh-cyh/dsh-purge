@@ -20,6 +20,14 @@ test("--keep 接受空格与等号两种写法，非数字忽略", () => {
   assert.equal(parseVerifyArgs(["--keep", "0"], { defaultRoot: "D:/repo" }).retentionKeep, 0);
 });
 
+test("--only 只认已开放的阶段（--only targets），别的一律忽略并报出来", () => {
+  assert.equal(parseVerifyArgs(["--only", "targets"], { defaultRoot: "D:/repo" }).only, "targets");
+  assert.equal(parseVerifyArgs(["--only=targets"], { defaultRoot: "D:/repo" }).only, "targets");
+  const unknown = parseVerifyArgs(["--only", "admin"], { defaultRoot: "D:/repo" });
+  assert.equal(unknown.only, undefined, "未开放的阶段不能静默生效");
+  assert.equal(unknown.onlyInvalid, "admin");
+});
+
 test("--no-prune 关掉清理；--stamp / --out-root / --no-seal / --json 照旧", () => {
   const args = parseVerifyArgs(["--no-prune", "--stamp", "s1", "--out-root", "D:/o", "--no-seal", "--json"], { defaultRoot: "D:/repo" });
   assert.equal(args.prune, false);

@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseVerifyArgs } from "../lib/verify/cli-args.js";
+import { VERIFY_ONLY_STAGES, parseVerifyArgs } from "../lib/verify/cli-args.js";
 import { describeRetention } from "../lib/verify/report.js";
 import { runVerification } from "../lib/verify/run.js";
 
 /**
  * 隔离验证入口：node scripts/verify.mjs [--root DIR] [--install DIR] [--out-root DIR]
- *   [--baseline-dir DIR] [--stamp ID] [--keep N] [--no-prune] [--no-seal] [--json]
+ *   [--baseline-dir DIR] [--stamp ID] [--keep N] [--no-prune] [--no-seal] [--json] [--only targets]
+ * `--only targets` 只跑入口五（目标定位与适配状态），用于迭代 harness / 补丁代入；
+ * 报告会写明只跑了哪一段，退出码只看跑过的那一段。
  * 退出码：0 通过；2 未通过（已知故障只记录，不影响退出码）。
  */
 
@@ -23,6 +25,7 @@ const result = await runVerification({
   seal: args.seal !== false,
   prune: args.prune !== false,
   retentionKeep: args.retentionKeep,
+  only: args.only,
   logger: (stage, detail) => console.error("[" + stage + "] " + detail),
 });
 
@@ -30,7 +33,9 @@ if (args.json) {
   console.log(JSON.stringify(result.report, null, 2));
 } else {
   const report = result.report;
-  console.log("dsh-purge 隔离验证：" + (report.ok ? "通过" : "未通过"));
+  console.log("dsh-purge 隔离验证：" + (report.ok ? "通过" : "未通过")
+    + (report.partial ? "（部分入口：" + report.partial.stages.join(",") + "）" : ""));
+  if (args.onlyInvalid) console.log("  --only 只支持：" + VERIFY_ONLY_STAGES.join(",") + "（忽略 " + args.onlyInvalid + "）");
   if (report.baseline) {
     console.log("  基线 " + report.baseline.treeHash.slice(0, 16) + " · " + report.baseline.fileCount + " 文件 · 插件 " + (report.baseline.plugin ? report.baseline.plugin.version : "?") + " · 宿主 " + (report.baseline.host ? report.baseline.host.shellVersion : "?"));
     if (report.baseline.drift) console.log("  与上次基线：" + (report.baseline.drift.ok ? "一致" : "有差异"));

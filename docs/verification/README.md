@@ -25,6 +25,13 @@ node scripts/verify.mjs --json # 输出机器可读报告
 
 可用参数：--root（插件源码根）、--install（桌面安装目录）、--out-root（工作区根）、--baseline-dir（基线目录）、--stamp（固定工作区名）、--no-seal（只校验不封存）。
 
+只改入口五时用 `node scripts/verify.mjs --only targets`：跳过宿主加载、预设、受控端点与管理生命周期，只跑
+目标定位与适配状态（含逐文件核对与运行结果证明），本机实测约 35 s；报告写「范围：只跑了 targets」，
+结论只对跑过的阶段负责。整轮结论仍以不带 `--only` 的那一轮为准。
+
+报告字段用 `node scripts/report-fields.mjs [latest|<stamp>|<report.json>] <点路径…>` 读，不要现写一次性脚本、
+也不要把脚本留在仓库根（#25 retro）。
+
 产物：
 
 - 保护基线：D:\dsh\data\dsh-purge\baseline\baseline-<stamp>.json 与 latest.json，只在 D 盘，不进仓库。

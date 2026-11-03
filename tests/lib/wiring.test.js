@@ -5,6 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import * as core from "../../lib/core.js";
+import { EXIT_LEDGER_MAX_BYTES, EXIT_LEDGER_MAX_ENTRIES } from "../../lib/exit-ledger.js";
 import * as model from "../../lib/patch-model.js";
 import { tempDir, withIsolatedHome } from "../verify/helpers.js";
 
@@ -248,6 +249,43 @@ test("接线：桌面退出留痕必须接在生产路径上（拔掉任何一�
   const exitSrc = readFileSync(path.join(repoRoot, "lib", "verify", "exit-trace.js"), "utf8");
   const strip = /const stripped = stripExitTrace\(body\);/.exec(exitSrc);
   assert.ok(strip, "对照必须从 close 回调体里摘掉生产路径上的那一段，而不是直调写入器");
+});
+
+test("接线：test:unit 必须覆盖除真宿主电池外的每个测试文件（清单不得静默变短）", () => {
+  // 2026-11-03 retro：test:unit 长期只列 3 个文件，新增的 tests/lib/* 一个都不在里面，
+  // 信它就会得到假绿。清单本身要有一条机械断言，否则它会继续漂。
+  const pkg = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8"));
+  const script = String(pkg.scripts["test:unit"] || "");
+  const HOST_BATTERY = new Set(["tests/verify/host-admin.test.js"]);
+  const all = [];
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.name.endsWith(".test.js")) all.push(path.relative(repoRoot, full).split(path.sep).join("/"));
+    }
+  };
+  walk(path.join(repoRoot, "tests"));
+  assert.ok(all.length >= 20, "tests/ 下应当有二十多个测试文件，文件枚举失效会让这条退化成空跑");
+  const missing = all.filter((rel) => !HOST_BATTERY.has(rel) && !script.includes(rel));
+  assert.deepEqual(missing, [], "这些测试只在 test:ci 里跑，test:unit 的清单漏了它们：" + missing.join(", "));
+});
+
+test("接线：宿主内联的留痕上界必须与 exit-ledger 的常量同口径（改上限只改一处）", () => {
+  const patch = core.ALL_PATCHES.find((item) => item.id === 90);
+  assert.ok(patch && Array.isArray(patch.replacements) && patch.replacements.length > 0, "找不到补丁 #90 的替换文案");
+  // 宿主 main.js 不能 import 插件，所以这段是内联副本；常量漂了要在单测里当场红，而不是等入口五或真机。
+  // 逐段核对：两种回调签名各一份拷贝，只改中一份同样是漂移。
+  patch.replacements.forEach((item, index) => {
+    assert.ok(
+      item.replace.includes("dshPurgeExitLines.slice(-" + EXIT_LEDGER_MAX_ENTRIES + ")"),
+      "#90 第 " + (index + 1) + " 段替换的条数上界必须等于 EXIT_LEDGER_MAX_ENTRIES(" + EXIT_LEDGER_MAX_ENTRIES + ")",
+    );
+    assert.ok(
+      item.replace.includes("Buffer.byteLength(") && item.replace.includes("> " + EXIT_LEDGER_MAX_BYTES + ")"),
+      "#90 第 " + (index + 1) + " 段替换的字节上界必须按 UTF-8（Buffer.byteLength）等于 EXIT_LEDGER_MAX_BYTES(" + EXIT_LEDGER_MAX_BYTES + ")",
+    );
+  });
 });
 
 test("接线：core 的 apply/status 依赖的模型函数确实可调用", () => {

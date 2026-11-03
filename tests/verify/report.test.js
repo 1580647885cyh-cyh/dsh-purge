@@ -134,6 +134,32 @@ test("buildReport 要求基线自检、宿主入口、模板契约、提示词�
   assert.equal(runtimeFailed.ok, false, "目标定位与运行结果证明失败必须让验证不通过");
 });
 
+test("--only 的报告：只对跑过的阶段判红，未执行的阶段不算失败也不算通过", () => {
+  const ws = workspace("report-partial");
+  const base = {
+    workspace: ws,
+    baselineFile: "D:\\baseline.json",
+    seal: { baseline: { sourceRoot: "D:\\repo", source: { treeHash: "abcdef", fileCount: 3 }, plugin: { version: "1.1.71" }, host: { shellVersion: "0.2.1-rc.5" }, environment: {}, git: {} } },
+    sealCheck: { ok: true },
+    // 只跑入口五：宿主/预设/模型/管理入口都没跑。
+    hostEntry: null,
+    presetEntry: null,
+    admin: null,
+    targets: targetsRecord(true),
+    partial: { stages: ["targets"], skipped: ["host", "preset", "model", "admin"] },
+  };
+  const passed = buildReport(base);
+  assert.equal(passed.ok, true, "只跑 targets 且 targets 通过时，整体应为通过");
+  assert.deepEqual(passed.partial, base.partial, "报告必须写明只跑了哪些阶段");
+  const markdown = renderReportMarkdown(passed);
+  assert.match(markdown, /范围：只跑了 targets；未执行：host,preset,model,admin/);
+
+  const failedTargets = buildReport({ ...base, targets: targetsRecord(false) });
+  assert.equal(failedTargets.ok, false, "跑过的阶段失败仍然要红");
+  const brokenBaseline = buildReport({ ...base, sealCheck: { ok: false } });
+  assert.equal(brokenBaseline.ok, false, "基线自检失败不能被 --only 吞掉");
+});
+
 test("knownFailures 把假成功、状态超前与运行结果失败报成 #6 的失败", () => {
   const failures = knownFailures({
     targets: {
