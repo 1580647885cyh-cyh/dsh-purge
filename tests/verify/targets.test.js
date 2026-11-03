@@ -3,9 +3,10 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { ALL_PATCHES, applyReplacementsToText, isLayoutSoftPatch, isSelfMarkedPatch, missingAnchors, patchEffectState, presetToolWebFetchEnabled, targetFiles } from "../../lib/core.js";
-import { auditTargetStatus, inspectPatchTargets, searchedPathsFor } from "../../lib/verify/targets.js";
+import { auditTargetStatus, fixtureKeyGaps, inspectPatchTargets, searchedPathsFor } from "../../lib/verify/targets.js";
 import { extractCloseHandler, runCloseHandler } from "../../lib/verify/target-entry.js";
 import { tempDir } from "./helpers.js";
+import { HOST_TEXT_FIXTURES } from "./host-text-fixtures.js";
 
 /**
  * 目标定位与适配状态（#6）。
@@ -202,6 +203,18 @@ test("目标定位：副本里没有的键可以按同源文件核对（桌面�
   }
 });
 
+test("隔离副本漏包检查：真机解析得到、副本里解析不到的键要被点出来（#21 复盘）", () => {
+  // 故障对照：FIXTURE_PACKAGES 漏了 dsh-harness-dev-context 时，dev-context 在真机解析得到、
+  // 副本里没有；这一条必须把它点出来，而不是让整轮 verify 保持绿色。
+  assert.deepEqual(
+    fixtureKeyGaps(["dev-context", "desktop-shell", "hooks-codex"], ["hooks-codex"], ["desktop-shell"]),
+    ["dev-context"],
+    "漏包的键要被点出来；桌面壳是显式例外",
+  );
+  assert.deepEqual(fixtureKeyGaps(["hooks-codex"], ["hooks-codex"], ["desktop-shell"]), [], "两边都在就不报");
+  assert.deepEqual(fixtureKeyGaps([], [], ["desktop-shell"]), [], "真机什么都没解析到时不该凭空造告警");
+});
+
 test("适配状态：状态说成功但文件里没有事实，按假成功报出来", () => {
   const rows = [
     { id: 1, name: "A", evidence: "unmatched", targets: [{ key: "a" }] },
@@ -267,32 +280,31 @@ test("适配状态：自标记型补丁找不到痕迹不算漂移（与 patchSt
   }
 });
 /**
- * 0.2.1-rc.5 的 dsh-harness-dev-context/lib/index.js **原文**（逐字节抄自本机安装，2026-11-03 实测）：
- * `WEB_SURFACE_PROMPT` 整段（含 \` 转义反引号与 HMR 段）、`LEGACY_SOURCE` / `LEGACY_WEB_SURFACE` 的
- * prefix/suffix、以及两条 `Current DeepSeek Harness …` 运行时上下文行。
+ * rc.5 的 dsh-harness-dev-context/lib/index.js：真正来自宿主的那几段从 host-text-fixtures 取
+ * （那里的每一条都由 host-text-fixtures.test.js 回真机核对子串），这里只拼装成一份最小文件。
  *
- * 不缩写成手写骨架：窗口锚点要处理的正是这些转义反引号（`[^\`]` 会停在第一个 \` 上）与长句，
- * 骨架证明不了它对真实字节成立。LEGACY_* 里也各有身份句与「Do not start a replacement server」——
- * 那是宿主用来匹配老会话已记录段落的两半，删掉等于让它们重写日志，所以两份原文都必须进来。
+ * 中间那几行（HARNESS_SOURCE_PROMPT / 对象括号 / apply 骨架）是**胶水**，不是宿主原文，
+ * 只为了让窗口锚点周围有同形的邻句：checkout 那句与身份句长得像，用来证明窗口不跨语句。
  */
+const RC5 = HOST_TEXT_FIXTURES.find((entry) => entry.id === "dev-context").texts;
 const RC5_DEV_CONTEXT = [
-  "const WEB_SURFACE_PROMPT = `You are interacting with the user through the DeepSeek Harness Web GUI whose URL the runtime context names. When the user refers to \"this page\", \"this GUI\", or \"this app\" without naming another target, they mean this GUI. The browser provides no implicit DOM, route, or screenshot context. The client-plugin HMR receiver is active, but client-plugin changes reload without a refresh only while \\`pnpm run dev:web\\` is also running from this same checkout to rebuild their bundles; verify that watcher before promising automatic updates. Every other change — the apps/web shell and plain packages — requires rebuilding the affected Web artifacts and verifying this existing URL after a page refresh. Starting another server does not update this GUI. The apps/web Vite entry builds the shell but is not a standalone application because only dsh web injects window.__DSH_BOOT__. Do not start a replacement server unless the user asks; if one is needed, use a managed background job and verify its exact URL.`;",
+  RC5.webSurfacePrompt,
   "const HARNESS_SOURCE_PROMPT = `The runtime context names the DeepSeek Harness implementation checkout.`;",
   "const LEGACY_SOURCE = {",
-  "\tprefix: \"The DeepSeek Harness implementation checkout is at \",",
-  "\tsuffix: \". The checkout location and current working directory are separate values and may differ; never infer the working directory from this path. Use pwd to determine the current working directory. Use this checkout only to inspect or extend DSH itself.\"",
+  RC5.legacySourcePrefix,
+  RC5.legacySourceSuffix,
   "};",
   "const LEGACY_WEB_SURFACE = {",
-  "\tprefix: \"You are interacting with the user through the DeepSeek Harness Web GUI at \",",
-  "\tsuffix: \". When the user refers to \\\"this page\\\", \\\"this GUI\\\", or \\\"this app\\\" without naming another target, they mean this GUI. The browser provides no implicit DOM, route, or screenshot context. The client-plugin HMR receiver is active, but client-plugin changes reload without a refresh only while `pnpm run dev:web` is also running from this same checkout to rebuild their bundles; verify that watcher before promising automatic updates. Every other change — the apps/web shell and plain packages — requires rebuilding the affected Web artifacts and verifying this existing URL after a page refresh. Starting another server does not update this GUI. The apps/web Vite entry builds the shell but is not a standalone application because only dsh web injects window.__DSH_BOOT__. Do not start a replacement server unless the user asks; if one is needed, use a managed background job and verify its exact URL.\"",
+  RC5.legacyWebSurfacePrefix,
+  RC5.legacyWebSurfaceSuffix,
   "};",
   "const LEGACY_PROMPT = \"harnessDevLegacyPrompt\";",
   "function apply(ctx) {",
   "\tctx.systemPrompt.context({",
-  "\t\ttext: `Current DeepSeek Harness implementation checkout: ${JSON.stringify(SOURCE_ROOT)}.`",
+  RC5.contextCheckout,
   "\t});",
   "\tctx.systemPrompt.context({",
-  "\t\ttext: () => `Current DeepSeek Harness Web GUI URL: ${JSON.stringify(ctx.webApp.getAdvertisedUrl())}.`",
+  RC5.contextUrl,
   "\t});",
   "}",
 ].join("\n");

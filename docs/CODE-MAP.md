@@ -39,6 +39,6 @@
 
 ## 常见改动从哪里开始
 
-- 改补丁行为：`lib/core.js` 的 `ALL_PATCHES` / `targetFiles`，在隔离副本上跑 `npm run verify`
+- 改补丁行为：`lib/core.js` 的 `ALL_PATCHES` / `targetFiles`，在隔离副本上跑 `npm run verify`。**新增/改指落点键时同步 `lib/verify/admin-entry.js` 的 `FIXTURE_PACKAGES`**——它是隔离副本的白名单，漏了包这两条补丁在副本里一路报「不适用」，而整轮报告仍然是绿的（`tests/verify/host-admin.test.js` 有一条跨检兜底）
 - 改提示词注入：`lib/index.js` 的 `registerPromptSections`，用 host-entry 捕获段名与变量
 - 改宿主发现或文件操作：`lib/desktop.js` / `lib/extract-asar.js` / `lib/host-deps.js`，配合 fd 探针、文件种类探针与真实安装守卫

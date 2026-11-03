@@ -74,6 +74,25 @@ test("故障对照：重复 id 与字段类型错误同样在构造期炸", () =
   assert.throws(() => assertPatchTable([{ ...base, revertsFrom: "later" }]), /revertsFrom 不是函数/);
 });
 
+test("A3 窗口锚点：带 marker 守卫的窗口必须写上界（#21 复盘）", () => {
+  // 窗口锚点的失效方式：宿主改一句，无界窗口就一路吃到下一条语句。
+  // #21 的两轴 review 用「句尾拉长」「换引号」两种改写试过——上界 + 右侧结构才拦得住。
+  // 这里只认 A3 的惯用法（(?!\[dsh-purge\])）：存量补丁的正则锚点不在此列，避免误报。
+  const windows = [];
+  for (const patch of ALL_PATCHES) {
+    const reps = Array.isArray(patch.replacements) ? patch.replacements : (patch.patterns || []).map((pattern) => ({ pattern }));
+    for (const rep of reps) {
+      if (!(rep.pattern instanceof RegExp)) continue;
+      if (!rep.pattern.source.includes("(?!\\[dsh-purge\\]")) continue;
+      windows.push({ id: patch.id, source: rep.pattern.source });
+    }
+  }
+  assert.ok(windows.length >= 4, "至少要认出 #32/#53 的 4 条窗口，否则这条会退化成空跑");
+  assert.ok(windows.some((item) => item.id === 32) && windows.some((item) => item.id === 53), "窗口锚点登记表漂了");
+  const unbounded = windows.filter((item) => !/\{\d+,\d+\}\?/.test(item.source));
+  assert.deepEqual(unbounded.map((item) => "#" + item.id), [], "窗口锚点必须带 {0,N}? 上界：宿主改一句时宁可失配，也不许跨语句吃正文");
+});
+
 test("故障对照：targetFiles 键集合与注册表不一致必须报错（两个方向）", () => {
   assert.equal(assertTargetKeys([...TARGET_FILE_KEYS]), 65);
   assert.throws(() => assertTargetKeys([...TARGET_FILE_KEYS, "vendor-extra"]), (error) => {

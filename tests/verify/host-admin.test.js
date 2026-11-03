@@ -4,6 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { isWithin } from "../../lib/verify/isolate.js";
+import { fixtureKeyGaps } from "../../lib/verify/targets.js";
 import { runVerification } from "../../lib/verify/run.js";
 import { resolveHostInstall } from "../../lib/verify/host-entry.js";
 
@@ -164,6 +165,16 @@ test("隔离宿主加载与请求准备：真实宿主包 + 插件工具契约",
     assert.equal(report.modelToolCall.endpoint.requests.length, 1);
     assert.ok(report.modelToolCall.endpoint.requests[0].toolNames.includes("purge_status"));
     assert.equal(report.modelToolCallRejected.executed.isError, true, "工具集外的调用应被拒绝");
+
+    // #21 复盘：真机能解析的补丁落点，隔离副本里也必须解析得到。
+    // 少一个包时报告整体仍然是绿的，只有 notApplicable 段会悄悄多一条——本票就是靠人肉读报告才发现的。
+    // 唯一例外是桌面壳：副本里没有 exe，入口五用 asar 解出的 lib/main.js 单独证明。
+    const fixtureGaps = fixtureKeyGaps(
+      (report.targets.live.unresolvedKeys || []).map((item) => item.key),
+      (report.targets.isolated.unresolvedKeys || []).map((item) => item.key),
+      ["desktop-shell"],
+    );
+    assert.deepEqual(fixtureGaps, [], "这些键在真机解析得到、在隔离副本里解析不到：fixture 配方（FIXTURE_PACKAGES）漏了包");
 
     const failureIds = report.knownFailures.map((failure) => failure.id);
     assert.equal(failureIds.includes("hostfs-fd-methods"), false, "fd 缺口应已修复");
