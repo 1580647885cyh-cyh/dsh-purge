@@ -303,3 +303,31 @@ test("接线：core 的 apply/status 依赖的模型函数确实可调用", () =
     assert.equal(typeof model[name], "function", "patch-model 应该导出 " + name);
   }
 });
+
+test("接线：A7 三条换包路径都必须先 main、确认消失、再挪 asar，失败时拉起原版", () => {
+  const desktopSrc = readFileSync(path.join(repoRoot, "lib", "desktop.js"), "utf8");
+  const ps1 = desktopSrc.slice(desktopSrc.indexOf("const ASAR_SWAP_PS1 = ["), desktopSrc.indexOf("const ASAR_RENAME_WHEN_IDLE_PS1 = ["));
+  const wscript = desktopSrc.slice(desktopSrc.indexOf("function officialRestartScript("), desktopSrc.indexOf("function systemPromptFiles("));
+
+  // wscript：mainPids 的等待/全清必须早于 MoveFile，失败分支必须重新拉起原版。
+  assert.ok(wscript.indexOf("var mains = mainPids();") >= 0, "wscript 必须显式找 main");
+  assert.ok(wscript.indexOf("var mains = mainPids();") < wscript.indexOf("fso.MoveFile(asar, bak)"), "wscript 必须在挪 asar 前处理 main");
+  assert.ok(wscript.indexOf("main left") < wscript.indexOf("fso.MoveFile(asar, bak)"), "wscript 必须在挪 asar 前确认 main 消失");
+  assert.ok(wscript.includes("rename failed; relaunching original"), "wscript 的失败分支必须拉起原版");
+  assert.match(wscript, /sh\.Run\('\\"' \+ exe \+ '\\"', 1, false\)/, "wscript 的失败分支必须真的启动 exe");
+  assert.equal((wscript.match(/sh\.Run\(/g) || []).length >= 3, true, "wscript 的失败/成功两条启动路径都要在");
+
+  // PowerShell：先 main，确认全清，再挪；Move-Item 必须让 catch 真正可到达。
+  assert.ok(ps1.indexOf("Get-MainProcs") >= 0, "PS1 必须显式找 main");
+  assert.ok(ps1.indexOf("Get-MainProcs") < ps1.indexOf("Move-Item -LiteralPath $AsarPath"), "PS1 必须在挪 asar 前处理 main");
+  assert.ok(ps1.includes("Move-Item -LiteralPath $AsarPath -Destination $bak -Force -ErrorAction Stop"), "PS1 的 Move-Item 必须 -ErrorAction Stop，否则失败分支永远走不到");
+  assert.equal((ps1.match(/Start-Process -FilePath \$ExePath/g) || []).length, 2, "PS1 的成功与失败分支都要启动 exe（失败=原版）");
+  assert.ok(ps1.includes("挪不动 / 进程没退干净"), "PS1 的失败分支要说明原版还在原位");
+
+  // helper：杀完 main 要等桌面消失；失败分支从 not relaunching 改成 relaunch original。
+  const helperSrc = readFileSync(path.join(repoRoot, "lib", "restart-desktop.js"), "utf8");
+  assert.ok(helperSrc.indexOf("waitDesktopGone(info.execPath, 8000)") >= 0, "helper 杀完 main 必须确认桌面消失");
+  assert.ok(helperSrc.indexOf("waitDesktopGone(info.execPath, 8000)") < helperSrc.indexOf("releaseSealedAsar(info.asar"), "确认消失必须早于挪 asar");
+  assert.ok(helperSrc.includes("asar still sealed; relaunching original"), "helper 的失败分支必须拉起原版");
+  assert.equal(helperSrc.includes("asar still sealed; not relaunching"), false, "helper 不能再留 not relaunching");
+});

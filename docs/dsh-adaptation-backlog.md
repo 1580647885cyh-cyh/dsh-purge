@@ -93,11 +93,19 @@ fixture 在入口五逐项落报告（`targets.desktop`）。「不解包」= �
 
 ### A7 · asar 换包顺序
 
+**状态：已落地（#27）**。三条路径（wscript / PowerShell / helper）的失败分支都会在 asar 仍密封时
+按原版布局重新拉起 exe；顺序显式成「先结束 main → 确认消失 → 再结束其余 → 全部消失 → 才挪 asar」，
+不靠 WMI / tasklist 的枚举顺序。`core.js` 的交接层与真实安装 apply/revert 未动。
+修前红/修后绿见 `docs/verification/records/issue-27.md`。
+
 - **宿主侧**：桌面点"应用"时 host 被杀而 Electron main 还活 → 弹 "host stopped"、asar 没挪动 = 半死
   （上游 `7fddfe3`）。顺序约束：先杀 main；挪不动就把原版拉起来。
-- **我们现状**：换包交接在 `core.js`（`swapAsar` handoff / `openSealedDesktopHost`），
-  未见对 Electron main 的结束步骤。
-- **要做**：核对我们的实际顺序，缺则补。
+- **我们现状（A7 前）**：换包交接在 `core.js`（`swapAsar` handoff / `openSealedDesktopHost`），
+  它只做文件交接、不做进程动作（这是对的）；进程动作在下游 `lib/desktop.js` 与 `lib/restart-desktop.js`。
+  审计发现三条失败分支都不拉起原版，且 wscript 脚本因注释含中文导致 `isWshAscii=false`、生产一直回落到
+  PowerShell（本机 detached PowerShell 还会直接 exit 0 不执行）。
+- **要做（已做）**：三条路径补失败分支；wscript 注释改 ASCII 恢复 intended 引擎选择；
+  顺序与失败分支由 `lib/verify/desktop-swap.js` 的假安装树 harness 证明（`tests/verify/desktop-swap.test.js`）。
 
 ### A8 · preset schema 校验
 
