@@ -325,6 +325,15 @@ DSH_HOME 里的已安装副本仍是旧写法时，报告只在「待自愈」�
 - 随 fd 修复暴露的必要路径缺陷：refreshStaleBaksForUpgrade 原先只看 dsh-purge 字面标记；agent-instructions 这类补丁把官方句子换成强句、不带该字串，备份真正落地后重复 apply 会把有效 bak 覆盖成已打补丁内容，revert 再也还原不回去。现按目标补丁的 marker/替换文本判断“文件已被我们打过”，实现与回归见 lib/core.js、hostfs.test.js，报告里的 reapply=0 / revert 还原 5 个是验收证据。
 - 不动工具 Schema/工具集合/预设：本票只加解析模块、fd 代理与验证入口字段。
 
+## 测试超时的口径（2026-11-03 实测）
+
+`tests/verify/host-admin.test.js` 是本仓库唯一的真宿主电池（一次 `runVerification`）：
+
+- 单独跑：116 s（`node --test tests/verify/host-admin.test.js --test-force-exit --test-timeout=300000`）。
+- 全量 `npm run test:ci` 并行跑：>186 s（`tests/lib/` 新增三个文件后，worker 争 CPU 明显变长）。
+
+因此单例超时定为 300 s（`package.json` 的 `test:ci` 与测试自身的 `timeout` 两处一致）。180 s 会把并行的正常通过判成超时。
+
 ## 测试写盘约定
 
 - 测试与脚本只写 D 盘；临时目录用 tests/verify/helpers.js 的 tempDir()。

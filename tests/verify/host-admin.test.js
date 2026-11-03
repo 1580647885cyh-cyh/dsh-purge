@@ -19,7 +19,7 @@ function hasHost() {
   }
 }
 
-test("隔离宿主加载与请求准备：真实宿主包 + 插件工具契约", { timeout: 180000 }, async (t) => {
+test("隔离宿主加载与请求准备：真实宿主包 + 插件工具契约", { timeout: 300000 }, async (t) => {
   if (!hasHost()) {
     t.skip("未安装桌面宿主，跳过");
     return;

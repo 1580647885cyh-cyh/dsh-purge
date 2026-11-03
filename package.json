@@ -42,7 +42,7 @@
     "check": "node scripts/check.mjs",
     "test": "node --test \"tests/**/*.test.js\"",
     "test:unit": "node --test tests/verify/isolate.test.js tests/verify/baseline.test.js tests/verify/report.test.js",
-    "test:ci": "node --test \"tests/**/*.test.js\" --test-force-exit --test-timeout=180000"
+    "test:ci": "node --test \"tests/**/*.test.js\" --test-force-exit --test-timeout=300000"
   },
   "license": "MIT",
   "keywords": [
