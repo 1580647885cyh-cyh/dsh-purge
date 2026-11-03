@@ -85,11 +85,18 @@ fixture 在入口五逐项落报告（`targets.desktop`）。「不解包」= �
 
 ### A6 · web 重启的孤儿 server 与 EADDRINUSE
 
+**状态：已落地（#28 复现 / #29 实现）**。helper 把 detached server 的 pid / port / host / url /
+startedAt / execPath / argv 写到 `<DSH_HOME>/dsh-purge/web-server-<port>.json`；宿主 `bin.js` 顶部
+新增自包含 preflight sidecar，在 profile boot / webserver 绑端口之前按「记录 pid → 端口监听者 →
+命令行」核对并回收。PID 复用/陌生端口不误杀，杀后等 pid 消失 + 端口空；有界 ≤5s、绝不抛错。
+测试 `tests/verify/web-reclaim.test.js`；票级记录 `docs/verification/records/issue-29.md`。
+
 - **宿主侧**：`dsh web` detached 重启会留孤儿 server，下次启动绑端口失败在 0.2.x 是 **fatal**
   （等插件层处理就晚了）（上游 `8d237ba`、`1bdf239`）。
-- **我们现状**：`lib/restart-web.js` 有 `killOldServer()`（taskkill /F + SIGTERM），
+- **我们现状（A6 前）**：`lib/restart-web.js` 有 `killOldServer()`（taskkill /F + SIGTERM），
   但**没有**"启动前回收孤儿 + 防 PID 复用 + 等端口释放"。
-- **前置**：**先在本机隔离验证里复现**（能不能留孤儿、留了会不会 EADDRINUSE）。复现不到就不做。
+- **前置（已做）**：#28 在本机隔离环境复现到「helper 退出后留下监听者」与「下一次 `dsh web`
+  `EADDRINUSE` exit 1」；复现评论见 #28。
 
 ### A7 · asar 换包顺序
 

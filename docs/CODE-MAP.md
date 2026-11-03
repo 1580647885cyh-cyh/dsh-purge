@@ -10,6 +10,7 @@
 - 补丁表与目标：`lib/core.js`（`ALL_PATCHES`、`targetFiles`、`applyPatchesAllHosts`、`revertAll`）
 - 补丁语义：`lib/patch-model.js`（`observe` / `effectOf` / `statusFacts`、受检键注册表 `TARGET_FILE_KEYS`、`assertPatchTable`；迁移清单见 `docs/patch-model-migration.md`）
 - 桌面安装发现与重启：`lib/desktop.js`
+- web 重启孤儿回收（A6-1 / #29）：`lib/restart-web.js`（detached server 记录）、`lib/web-reclaim.js`（记录读写 + 决策 + bin.js 顶部 preflight sidecar）
 - 宿主依赖解析：`lib/host-deps.js`（锚点候选 + 宿主包根身份核对；`lib/redteam/tools.js` 用它取 `@deepseek-ai/dsh-tools`）
 - asar 解包与文件代理：`lib/extract-asar.js`（`hostFs` 路径方法按 asar 映射选 fs；fd 方法直接交给 `node:fs`）
 - 宿主面识别：`lib/surface.js`
