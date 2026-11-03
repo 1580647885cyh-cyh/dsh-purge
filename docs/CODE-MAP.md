@@ -24,12 +24,17 @@
 - 目标定位与适配状态（#6）：`lib/verify/targets.js`（逐文件目标态判定）、`lib/verify/target-entry.js`（入口五：定位、应用、运行结果证明）
 - 备份/恢复故障注入（#7）：`lib/verify/backup-faults.js`（完整备份 / 过期备份 / 0 字节备份），由入口三调用
 - 参数解析（#13）：`lib/verify/cli-args.js`（`scripts/verify.mjs` 的参数契约，含 `--keep` / `--no-prune`）
+- 验收入口参数（#22 复盘）：`lib/verify/acceptance-args.js`（`scripts/acceptance.mjs` 的 `--out` / `--name` / `--stamp`；
+  位置参数 = npm 吞掉旗标后留下的值，当用法错误处理）
 - 工作区清理（#13）：`lib/verify/retention.js`（只清 `<stamp>` / `probe-<stamp>`，本轮与在跑的不清，释放量进报告）
 - fixture 缓存（#11）：`lib/verify/fixture-cache.js`（键 = app.asar size+mtime；命中整棵复制、未命中从 asar 解；缺包/损坏自动重建）
 - 隔离探针：`scripts/probe.mjs`（`npm run probe <file>`，切环境 + 宿主预检 + 真实安装只读核对）
 - 验收与兼容记录（#8）：`scripts/acceptance.mjs`（`npm run acceptance`）、`lib/verify/acceptance.js`、`docs/compatibility/`
 - 预设与工具契约入口：`lib/verify/preset-entry.js`、`lib/verify/model-endpoint.js`
 - 测试：`tests/verify/`（验证设施）、`tests/lib/`（补丁模型 / 表校验 / 接线检查）、`tests/archive/`（原版与能力面守卫）；`npm test`（无宿主时集成测试自动 skip）
+- **宿主原文 fixture**：`tests/verify/host-text-fixtures.js` —— 测试里**声称是宿主原文**的文本只能登记在这里，
+  由 `host-text-fixtures.test.js` 回真机核对子串；手写骨架会被判成「证据自证」（#21 复盘钉的故障对照）。
+  故意裁过的等价形状留在各自测试里，不要混进登记表。
 - 原版 1.1.71 与能力指纹：`docs/original-1.1.71.sha256.json`（108 文件清单）、`docs/original-1.1.71.capability.json`（工具/预设行/技能/内嵌提示词哈希）；守卫是 `tests/archive/original-1.1.71.test.js`
 - 检查：`npm run check`（全量 `node --check` + 入口 import）；`npm run test:unit`
 - 钩子：`git config core.hooksPath .githooks` 启用；跳过单次用 `DSH_PURGE_SKIP_HOOKS=1`；钩子跑 `npm run test:ci`（全量测试 + `--test-force-exit` + 单例超时），新增测试文件不用改钩子

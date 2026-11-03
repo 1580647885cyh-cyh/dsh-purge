@@ -1,6 +1,6 @@
 {
   "kind": "dsh-purge-acceptance",
-  "generatedAt": "2026-11-03T09:12:51.635Z",
+  "generatedAt": "2026-11-03T09:42:13.046Z",
   "ok": true,
   "plugin": {
     "version": "1.1.71",
@@ -23,35 +23,35 @@
       "issue": "#3",
       "fault": "桌面布局下解析不到 @deepseek-ai/dsh-tools；备份占位 fd 未关闭导致 rename EPERM",
       "fix": "宿主依赖锚点候选 + 包根身份核对；hostFs 补齐 fd 方法",
-      "evidence": "docs/verification/README.md「本票验收对应（#3）」"
+      "evidence": "docs/verification/records/issue-3.md「本票验收对应（#3）」"
     },
     {
       "id": "R2",
       "issue": "#4",
       "fault": "宿主 0.2.1-rc.5 拒绝 toolFilter，预设行挂不上",
       "fix": "toolFilter → agentPreset + redteam-worker 组合裁剪（保留原 deny 语义）",
-      "evidence": "docs/verification/README.md「本票验收对应（#4）」"
+      "evidence": "docs/verification/records/issue-4.md「本票验收对应（#4）」"
     },
     {
       "id": "R3",
       "issue": "#5",
       "fault": "宿主只注册 provider/model，{{cwd}} 让整份提示词渲染失败",
       "fix": "apply 时用 SystemPrompt.variable 补 cwd（缺失给空串）",
-      "evidence": "docs/verification/README.md「回归记录（#5）」"
+      "evidence": "docs/verification/records/issue-5.md「回归记录（#5）」"
     },
     {
       "id": "R4",
       "issue": "#6",
       "fault": "rc.5 的等价分支/编译形式识别不到（#40/#84）；通用标记把官方文案当成功（#24）",
       "fix": "补等价形式匹配 + settledWhen/patchEffectState/patchOwnMarkPresent；新增目标定位与适配状态入口",
-      "evidence": "docs/verification/README.md「回归记录（#6）」"
+      "evidence": "docs/verification/records/issue-6.md「回归记录（#6）」"
     },
     {
       "id": "R5",
       "issue": "#7",
       "fault": "过期 bak 未刷新（目标态/官方标记误判）导致旧宿主内容写回；0 字节 bak 清空目标",
       "fix": "looksPatchedAlready 改用自证标记 + provenance；revert 前刷新过期 bak、拒绝空备份",
-      "evidence": "docs/verification/README.md「回归记录（#7）」"
+      "evidence": "docs/verification/records/issue-7.md「回归记录（#7）」"
     }
   ],
   "host": {
@@ -73,9 +73,9 @@
     }
   },
   "baseline": {
-    "file": "D:\\dsh\\data\\dsh-purge\\baseline\\baseline-acceptance-20261103-171148.json",
-    "treeHash": "b5d3130efaa63ac80c056e86f93803ba57fcbdbb754a89c9ebdefbfa3dbc479f",
-    "fileCount": 176
+    "file": "D:\\dsh\\data\\dsh-purge\\baseline\\baseline-acceptance-20261103-174115.json",
+    "treeHash": "e63a33480689c4a4abd1cfccc2030f0b9a2b002512063badad4478327c1afe9b",
+    "fileCount": 188
   },
   "lock": {
     "ok": true,
@@ -174,7 +174,7 @@
       "label": "PRESET_UNRESTRICTED_IDENTITY_STRIP",
       "optional": true,
       "evidence": [
-        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-171148\\home\\.agent-presets\\unrestricted\\agent.cordis.yml"
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-174115\\home\\.agent-presets\\unrestricted\\agent.cordis.yml"
       ]
     },
     {
@@ -182,9 +182,9 @@
       "label": "LIANGSHEN_IDENTITY_LINE",
       "optional": false,
       "evidence": [
-        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-171148\\home\\.agent-presets\\liangshen\\agent.cordis.yml",
-        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-171148\\home\\profiles\\desktop\\node_modules\\@linxin666\\dsh-liangshen\\presets\\liangshen\\agent.cordis.yml",
-        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-171148\\home\\profiles\\web\\node_modules\\@linxin666\\dsh-liangshen\\presets\\liangshen\\agent.cordis.yml"
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-174115\\home\\.agent-presets\\liangshen\\agent.cordis.yml",
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-174115\\home\\profiles\\desktop\\node_modules\\@linxin666\\dsh-liangshen\\presets\\liangshen\\agent.cordis.yml",
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-174115\\home\\profiles\\web\\node_modules\\@linxin666\\dsh-liangshen\\presets\\liangshen\\agent.cordis.yml"
       ]
     },
     {
@@ -192,7 +192,7 @@
       "label": "LIANGSHEN_PHASE1_KEEP_INJECT",
       "optional": true,
       "evidence": [
-        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-171148\\home\\.agent-presets\\liangshen\\tool-bootstrap.mjs"
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-174115\\home\\.agent-presets\\liangshen\\tool-bootstrap.mjs"
       ]
     },
     {
@@ -200,9 +200,9 @@
       "label": "HOOKS_CLAUDE_DENY_ALLOW",
       "optional": true,
       "evidence": [
-        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-171148\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-claude-code",
-        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-171148\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-claude-code",
-        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-171148\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-claude-code"
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-174115\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-claude-code",
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-174115\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-claude-code",
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-174115\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-claude-code"
       ]
     },
     {
@@ -210,9 +210,9 @@
       "label": "HOOKS_CODEX_DENY_ALLOW",
       "optional": true,
       "evidence": [
-        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-171148\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-codex",
-        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-171148\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-codex",
-        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-171148\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-codex"
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-174115\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-codex",
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-174115\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-codex",
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-174115\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-codex"
       ]
     },
     {
@@ -220,9 +220,9 @@
       "label": "HOOKS_STOP_STEER_NEUTRAL",
       "optional": true,
       "evidence": [
-        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-171148\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-claude-code",
-        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-171148\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-claude-code",
-        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-171148\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-claude-code"
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-174115\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-claude-code",
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-174115\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-claude-code",
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-174115\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-claude-code"
       ]
     },
     {
@@ -230,9 +230,9 @@
       "label": "HOOKS_PRESTEP_REJECT_NEUTRAL",
       "optional": true,
       "evidence": [
-        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-171148\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-claude-code",
-        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-171148\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-claude-code",
-        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-171148\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-claude-code"
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-174115\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-claude-code",
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-174115\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-claude-code",
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-174115\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-claude-code"
       ]
     },
     {
@@ -240,7 +240,7 @@
       "label": "未定位键",
       "optional": true,
       "evidence": [
-        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-171148\\home\\.agent-presets\\unrestricted\\agent.cordis.yml"
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-174115\\home\\.agent-presets\\unrestricted\\agent.cordis.yml"
       ]
     },
     {
@@ -248,7 +248,7 @@
       "label": "未定位键",
       "optional": true,
       "evidence": [
-        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-171148\\home\\.agent-presets\\liangshen\\agent.cordis.yml"
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-174115\\home\\.agent-presets\\liangshen\\agent.cordis.yml"
       ]
     },
     {
@@ -256,8 +256,8 @@
       "label": "未定位键",
       "optional": true,
       "evidence": [
-        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-171148\\home\\profiles\\desktop\\node_modules\\@linxin666\\dsh-liangshen\\presets\\liangshen\\agent.cordis.yml",
-        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-171148\\home\\profiles\\web\\node_modules\\@linxin666\\dsh-liangshen\\presets\\liangshen\\agent.cordis.yml"
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-174115\\home\\profiles\\desktop\\node_modules\\@linxin666\\dsh-liangshen\\presets\\liangshen\\agent.cordis.yml",
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-174115\\home\\profiles\\web\\node_modules\\@linxin666\\dsh-liangshen\\presets\\liangshen\\agent.cordis.yml"
       ]
     },
     {
@@ -265,8 +265,8 @@
       "label": "未定位键",
       "optional": true,
       "evidence": [
-        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-171148\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh-user-approval\\lib\\invariant.js",
-        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-171148\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-user-approval\\lib\\invariant.js"
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-174115\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh-user-approval\\lib\\invariant.js",
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-174115\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-user-approval\\lib\\invariant.js"
       ]
     },
     {
@@ -274,7 +274,7 @@
       "label": "未定位键",
       "optional": true,
       "evidence": [
-        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-171148\\home\\.agent-presets\\liangshen\\tool-bootstrap.mjs"
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-174115\\home\\.agent-presets\\liangshen\\tool-bootstrap.mjs"
       ]
     },
     {
@@ -282,7 +282,7 @@
       "label": "未定位键",
       "optional": true,
       "evidence": [
-        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-171148\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-tool-web\\lib\\index.js"
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-174115\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-tool-web\\lib\\index.js"
       ]
     },
     {
@@ -290,8 +290,8 @@
       "label": "未定位键",
       "optional": true,
       "evidence": [
-        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-171148\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-claude-code",
-        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-171148\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-claude-code"
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-174115\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-claude-code",
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-174115\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-claude-code"
       ]
     },
     {
@@ -299,7 +299,7 @@
       "label": "未定位键",
       "optional": true,
       "evidence": [
-        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-171148\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-claude-code"
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-174115\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-claude-code"
       ]
     },
     {
@@ -307,8 +307,8 @@
       "label": "未定位键",
       "optional": true,
       "evidence": [
-        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-171148\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-codex",
-        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-171148\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-codex"
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-174115\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-codex",
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-174115\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-codex"
       ]
     },
     {
@@ -316,7 +316,7 @@
       "label": "未定位键",
       "optional": true,
       "evidence": [
-        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-171148\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-codex"
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-174115\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-hooks-codex"
       ]
     },
     {
@@ -324,7 +324,7 @@
       "label": "未定位键",
       "optional": true,
       "evidence": [
-        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-171148\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-system-prompt\\lib\\index.js"
+        "D:\\dsh\\tmp\\dsh-purge-verify\\acceptance-20261103-174115\\desktop\\resources\\app\\dsh\\node_modules\\@deepseek-ai\\dsh\\node_modules\\@deepseek-ai\\dsh-system-prompt\\lib\\index.js"
       ]
     }
   ],
@@ -334,7 +334,7 @@
     "Web / macOS / Linux 以及其他 DSH 版本"
   ],
   "commands": [
-    "node scripts/verify.mjs --stamp acceptance-20261103-171148",
+    "node scripts/verify.mjs --stamp acceptance-20261103-174115",
     "D:\\dev-runtime\\node\\node-v24.14.1-win-x64\\node.exe D:\\dsh\\local-plugins\\dsh-purge\\scripts\\acceptance.mjs --out D:\\dsh\\local-plugins\\dsh-purge\\docs\\compatibility --name rc5-acceptance"
   ],
   "environment": {

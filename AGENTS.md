@@ -15,8 +15,9 @@
 ## 仓库导航
 
 - **验证入口**：改宿主适配、提示词/预设注册或管理生命周期前，先读 `docs/verification/README.md`；隔离验证用 `npm run verify`；任何要 import `lib/core.js` 做探查/实验的脚本一律 `npm run probe <file>`（自动切隔离环境 + 宿主预检 + 真实安装只读核对），不要在真实环境直接调 apply/revert。
+- **脚本参数**：带参数的脚本直接 `node scripts/xxx.mjs …`（如 `node scripts/acceptance.mjs --out docs/compatibility --name rc5-acceptance`）；`npm run xxx -- --flag` 在本机 npm（PowerShell shim，实测 11.21.0）下会把旗标吃掉、只把值传进来，脚本会静默走默认值（#22 复盘）。
 - **代码地图**：找模块入口、补丁管线、宿主发现和测试位置，读 `docs/CODE-MAP.md`。
 - **宿主契约**：改宿主包调用、预设注册或工具 Schema 前，先读 `docs/host-contract.md`。
 - **文档编辑**：改长文档用 `edit` 定点替换/追加，不要 read→write 整文件（读回可能被截断，写完不核对就会静默丢段）；整文件写回后核对 `totalLines` 与 `git diff --numstat` 的删除行数。
-- **提交检查**：迭代时只跑受影响的测试文件（`node --test tests/verify/<模块>.test.js`）；全量 `npm run test:ci`（`--test-force-exit` + 单例超时）交给 pre-commit 钩子，不要手动重复跑。整轮测试与提交钩子约 100–120 s，**放后台跑**，在前台等会撞单次命令预算。`npm run check` 便宜，随时可跑：全量语法 + 入口 import + 三条启发式提示（本次改动新增的未使用导出、测试里的替身调用次数断言、测试自建临时目录；只报告不失败）。
+- **提交检查**：迭代时只跑受影响的测试文件（`node --test tests/verify/<模块>.test.js`）；全量 `npm run test:ci`（`--test-force-exit` + 单例超时）交给 pre-commit 钩子，不要手动重复跑；技能要求「最后跑一次全量」时，以提交钩子的那次为准（#22 复盘：手动跑一遍 + 钩子再跑一遍纯属浪费）。整轮测试与提交钩子约 100–120 s，**放后台跑**，在前台等会撞单次命令预算。`npm run check` 便宜，随时可跑：全量语法 + 入口 import + 四条启发式提示（本次改动新增的未使用导出、测试里的替身调用次数断言、测试自建临时目录、文档新增行里手抄的控制台串/单点计数；只报告不失败）。
 - **代码索引**：仓库已建 codegraph 索引（`.codegraph/`，本地、已 gitignore、不进保护基线）；问"某符号在哪/谁调用它"时先用 `codegraph_explore(projectPath=仓库根)`，比 grep+read 快得多。索引由 MCP 侧更新（新增文件未经手动 sync 已可检索），不用手动 sync。

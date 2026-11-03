@@ -137,7 +137,33 @@ for (const [rel, text] of sources) {
 // 替代方案（已落地）：tests/lib/wiring.test.js —— 同一个不变量，用测试而不是提示来守，
 // 跑在 pre-commit 的 test:ci 里，毫秒级。要复现本类问题，先看那个文件。
 
-const hints = unusedExports.length + internalAssertions.length + ownTempDirs.length;
+// 规则 9（数字带口径）：文档里抄控制台串/单点计数，而不是引用报告字段时提示。
+// 只扫 git diff HEAD 里 docs/ 的新增行：存量文档不追究，且"提到某个串"（不带数字）不算违规。
+function addedDocCountLines() {
+  const diff = spawnSync("git", ["diff", "-U0", "HEAD", "--", "docs"], { cwd: root, encoding: "utf8", windowsHide: true });
+  if (diff.status !== 0 || !diff.stdout) return [];
+  const hits = [];
+  let file = "";
+  let line = 0;
+  for (const raw of diff.stdout.split(/\r?\n/)) {
+    if (raw.startsWith("+++ b/")) { file = path.normalize(raw.slice(6)); continue; }
+    const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)/.exec(raw);
+    if (hunk) { line = Number(hunk[1]); continue; }
+    if (raw.startsWith("+") && !raw.startsWith("+++")) {
+      const text = raw.slice(1);
+      const consoleCount = /\b(?:applied|already|drifted)\b\s*[=:]\s*\d/.test(text);
+      const driftCount = /漂移\s*[=:：]\s*\d/.test(text);
+      const testCount = /测试\s*\d+\s*条/.test(text);
+      if (consoleCount || driftCount || testCount) hits.push({ rel: file, line, text: text.trim().slice(0, 100) });
+    }
+    line += 1;
+  }
+  return hits;
+}
+
+const docCountLines = addedDocCountLines();
+
+const hints = unusedExports.length + internalAssertions.length + ownTempDirs.length + docCountLines.length;
 if (unusedExports.length > 0) {
   console.warn("提示（不阻塞）：未使用导出 " + unusedExports.length + " 个（规则 5；宿主按名字取用的入口会误报）：");
   for (const hit of unusedExports.slice(0, 20)) console.warn("  " + hit.rel + ":" + hit.line + " " + hit.name);
@@ -146,6 +172,10 @@ if (unusedExports.length > 0) {
 if (internalAssertions.length > 0) {
   console.warn("提示（不阻塞）：测试断言了替身调用次数/内部记录 " + internalAssertions.length + " 处（规则 4）：");
   for (const item of internalAssertions.slice(0, 20)) console.warn("  " + item.rel + ":" + item.line + " " + item.text);
+}
+if (docCountLines.length > 0) {
+  console.warn("提示（不阻塞）：文档新增行里抄了控制台串/单点计数 " + docCountLines.length + " 处（规则 9；改成引用 report 字段）：");
+  for (const item of docCountLines.slice(0, 20)) console.warn("  " + item.rel + ":" + item.line + " " + item.text);
 }
 if (ownTempDirs.length > 0) {
   console.warn("提示（不阻塞）：测试自建临时目录 " + ownTempDirs.length + " 处（规则 2；统一用 tests/verify/helpers.js 的 tempDir）：");

@@ -8,6 +8,7 @@ import { hostFingerprint } from "../lib/verify/baseline.js";
 import { resolveHostInstall } from "../lib/verify/host-entry.js";
 import { stampNow } from "../lib/verify/isolate.js";
 import { assertRemoteUpdatesAllowed, localLockedUpdateStatus } from "../lib/local-version-lock.js";
+import { acceptanceArgsProblem, parseAcceptanceArgs } from "../lib/verify/acceptance-args.js";
 
 /**
  * 验收入口（#8）：跑一遍隔离验证，再把结果收敛成兼容修订记录。
@@ -18,21 +19,14 @@ import { assertRemoteUpdatesAllowed, localLockedUpdateStatus } from "../lib/loca
  * 退出码：0 通过；2 未通过。
  */
 
-function parseArgs(argv) {
-  const out = {};
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (!arg.startsWith("--")) continue;
-    const key = arg.slice(2);
-    const value = argv[i + 1];
-    if (!value || value.startsWith("--")) continue;
-    i += 1;
-    out[key] = value;
-  }
-  return out;
+const args = parseAcceptanceArgs(process.argv.slice(2));
+// npm run … -- --out DIR 在本机会把旗标吃掉、只留值（#22 复盘实测 11.21.0）：
+// 收到没配对的位置参数就当场报用法错误，别静默写到默认目录。
+const argsProblem = acceptanceArgsProblem(args);
+if (argsProblem) {
+  console.error(argsProblem);
+  process.exit(2);
 }
-
-const args = parseArgs(process.argv.slice(2));
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const stamp = args.stamp || "acceptance-" + stampNow();
 

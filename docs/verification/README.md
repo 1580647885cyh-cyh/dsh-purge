@@ -36,6 +36,32 @@ node scripts/verify.mjs --json # 输出机器可读报告
 
 报告只汇总结构性事实（长度、哈希、段名、工具名、文件差异）；提示词全文、工具契约全文只落在隔离工作区。
 
+## 报告字段速查（report.json）
+
+断言和文档都引用这里的字段，别抄控制台串（#22 复盘：写「漂移=N」「applied=N」会随着口径和打印格式漂）。
+
+| 字段 | 是什么 |
+| --- | --- |
+| `ok` / `generatedAt` | 整轮结论与时间戳（`kind` 恒为 `dsh-purge-verify`） |
+| `workspace` | 本轮隔离工作区：`root` / `home` / `install` / `out` |
+| `fixture` | 宿主副本来源：`source`（cache / asar / install）、`packages`、`cacheHit`、`cacheKey`、`rebuildReason`、`durationMs` |
+| `baseline` | 保护基线：`file`、`treeHash`、`fileCount`、`sealCheck`、`drift`、`plugin`、`host`、`git` |
+| `retention` | 工作区清理：`keep`、`kept`、`removed`、`freedBytes`、`skippedReasons` |
+| `hostEntry` | 宿主加载：`tools`、`sections`、`variables`、`templateContract`、`promptPreset`、`toolBridge`（`prompt` 是全文，只在工作区里） |
+| `admin.diffs` | 管理入口的文件差异：`apply` / `reapply` / `revert`，各含 `changed` / `added` / `removed` 与文件名列表 |
+| `admin.backupFaults` | 备份/恢复故障注入的逐案例结果（完整 / 过期 / 0 字节备份） |
+| `targets.isolated` | 隔离副本的补丁事实：`statusBefore`、`statusAfter`、`summary`、`applied`、`drifted`、`unmatched`、`unresolvedKeys`、`diffs` |
+| `targets.live` | 真机安装的同类事实（无 `statusBefore/After`，另有 `shellFile` / `shellCandidates`） |
+| `targets.audit` | 状态与文件是否一致：`falseSuccess`、`ahead`、`behind`、`settledByLayout` |
+| `targets.runtime` | 入口五的运行结果证明：`completePrompt`、`shell`、`presetFetch` |
+| `modelToolCall` / `modelToolCallRejected` | 受控端点上的有效调用与工具集外调用 |
+| `presetEntry` / `presetMigration` / `presetAudit` | 预设注册、迁移与静态审计 |
+| `pendingSelfHeal` | 已安装副本仍是旧写法、等下次启动自愈的项（不算失败） |
+| `knownFailures` | 已复现且归属明确的故障；非空时验收不通过 |
+| `commands` | 本轮实际执行过的命令 |
+
+`report.md` 是同一份数据的渲染版：字段名不变，另外把「状态与文件一致」一类结论写成一句话。
+
 ## 隔离边界（硬性约束）
 
 1. 全部路径经 assertDriveDPath 校验，工作区、DSH_HOME、缓存、临时目录、日志和宿主副本都在 D 盘。
@@ -79,7 +105,7 @@ node scripts/verify.mjs --json # 输出机器可读报告
 - 模板渲染契约（#5）：用插件加载后的真实装配变量渲染六类案例——旧模板、自定义模板、空后缀、缺失后缀、正常工作目录、缺失工作目录；期望值是保护基线的模板字面量，任一案例失败即本次验证不通过。
 - 完整提示词预设（#5）：读取随包预设的 persona 行配置（宿主自带 yaml 包解析），按该预设声明会话，再走装配 → 渲染 → 真实装配内模板 → 运行上下文快照 → 重复装配稳定性 → required 运行上下文在抑制/刷新下的生命周期；受控请求的消息按 dsh-agent-loop 的顺序组成（系统提示词、本轮用户消息、运行上下文快照），端点侧只记录角色、长度、哈希与标记命中。
 - 工具桥接探针（#3）：先按隔离桌面布局（DSH_DESKTOP_INSTALL → resources/app/dsh/node_modules）解析 @deepseek-ai/dsh-tools，确认候选命中且结果落在隔离副本内；再只读地把锚点指向真实桌面安装，导入 lib/redteam/tools.js，确认 defineTool 真的加载出来（预设行 dsh-purge/redteam/tools 的前置条件）。
-- {{cwd}} 模板由插件补回的装配变量渲染（#5，见「回归记录」）；已安装 redteam 预设仍写已废弃 toolFilter 时进「待自愈」，不算已知故障。
+- {{cwd}} 模板由插件补回的装配变量渲染（#5，见 [records/issue-5.md](records/issue-5.md)）；已安装 redteam 预设仍写已废弃 toolFilter 时进「待自愈」，不算已知故障。
 
 不覆盖：Electron 桌面进程、真实 HTTP 模型请求、模型回答质量。
 
@@ -222,119 +248,23 @@ DSH_HOME 里的已安装副本仍是旧写法时，报告只在「待自愈」�
 #7 起，备份/恢复的故障注入也是硬契约：完整备份还原、过期备份刷新、0 字节备份拒绝写回，
 任一案例失败即「验证不通过」（见入口三的 backupFaults）。
 
-## 回归记录（#5 恢复模板渲染和完整提示词预设运行）
+## 票级记录（回归与验收）
 
-- 故障：目标宿主（0.2.1-rc.5 的 dsh-agent-loop）只注册 provider/model；模板里的 {{cwd}}
-  让 renderPrompt 抛 unknown prompt variable，整份提示词渲染失败（此前工作目录报错的来源）。
-- 修复：lib/prompt-variables.js 在 apply 时注册 cwd（值取 session.header.cwd，缺失给空串），
-  旧模板/自定义模板按原契约渲染；插件自己的段仍不写 {{cwd}}，目录由宿主必需运行上下文提供，
-  不重复表达同一事实（原 CWD_ONLY_SUFFIX 修复保持不变）。
-- 通过证据：报告已知故障 0 条；模板渲染契约 6/6（含空后缀、缺失后缀、缺失工作目录），
-  并带故障对照——同一份旧模板只给宿主自带的 provider/model 时必须仍被拒绝（unknown prompt variable）。
-- 通过证据：完整提示词预设全部核对项通过——随包预设 persona 进装配并原样保留、真实装配内模板渲染出
-  {{cwd}}、会话模式按预设走红队分支、重复装配三次一致、无残留变量、注入段 1 份、required 上下文在抑制下保留；
-  受控请求的系统消息命中插件正文，运行上下文消息带工作目录。
+每票的「回归记录 / 本票验收对应」按票分文件放在 `records/`（#22 复盘：这一节会线性增长，不再往 README 里追加）。
+新票直接写 `records/issue-<编号>.md`，然后在下表加一行。
 
-## 回归记录（#6 恢复 rc.5 目标定位并让适配状态反映实际结果）
-
-- 故障一（状态落后于结果，#84）：0.2.1-rc.5 的 close 回调写成
-  `if (code !== 0 && code !== null) … else fail(stopped)`。#83 会先把它改写成旧形态、#84 再消掉 code=0 的
-  stopped 分支 —— 应用链路本来就能生效（链式探针：只保留旧形态的 #84 也能改写）。但 patchStatus 按原文
-  直接匹配时不认这条链：未打补丁的副本上报 skipped，和「点应用会改文件」对不上。修法是给 #84 补一条直接
-  匹配 rc.5 形态的等价形式（替换语义与旧形态完全一致），状态回到 pending → applied。
-- 故障二（等价分支）：system-prompt 的 assemble 在 complete 分支前多了 requiredContexts 过滤，contexts
-  表达也换了形态。#40 只认旧形态，complete 预设下注入段会被整段丢掉；同一处若按旧替换写回，还会把 #5
-  要求的 required 运行上下文一起清空。
-- 故障三（标记造成的假成功）：#24 把通用字符串 `fetch: true` 当完成标记，而官方 preset 本来就写着
-  fetch: true —— 状态报成功，实际处理一次都没跑。现在由 presetToolWebFetchEnabled 按行缩进判定 tool-web
-  自己那一块，块外/别的行的 fetch 不算。
-- 修复：#84/#40 各补一条等价形式的匹配（替换语义不变）；#24 换成目标态判定，并补 rc.5 缩进下的
-  fetch: false → true 形；core 新增 settledWhen（补丁自带的目标态判定）与 patchEffectState（只看文件事实）。
-- 通过证据（本次报告）：隔离副本应用改了 47 个文件，重复应用 0 改动；应用后逐文件核对「写进文件 69 /
-  宿主本就满足 1 / 待改 0 / 对不上 5（#21/#80/#32/#53/#77，逐条带落点）/ 不适用 7（逐条带搜索位置）」；
-  状态一致：假成功 0 / 状态超前 0 / 状态落后 0。
-- 通过证据（运行结果）：完整提示词装配里 dsh-purge 段与 complete 段共存、抑制运行上下文后仍是
-  working-directory，而未打补丁的真实宿主在同一装配里丢掉注入段；桌面壳 close 回调未打补丁时 code=0 报错、
-  打补丁后不报错、code=3 仍报错、重复应用 0 改动；副本上关掉 preset 的 fetch 后，公开 purge_apply 重新打开
-  并写回标记，重复应用不追加。
-
-## 回归记录（#7 隔离宿主应用与跨版本恢复的完整性）
-
-- 故障一（旧备份写回新宿主）：refreshStaleBaksForUpgrade 原用 patchApplied 判断「是不是我们打过的版本」。
-  两处误判都复现了：(a) #6 的 settledWhen 让官方新 preset（自带 `fetch: true`）被判成已打补丁；
-  (b) #2/#3/#50 的「完成标记」就是官方原文，官方文件本身就带。两种情况下过期 bak 都不刷新，
-  revert 随后把旧宿主内容写回。修复：改用 patchOwnMarkPresent，并给这三类补丁标 `provenance: false`。
-- 故障二（0 字节备份覆盖目标）：apply 中断会留下 0 字节 bak 占位符；revertAll 只比较字节是否相同，
-  不校验 bak 是否有效，直接把有效目标截成 0 字节（复现：60147 → 0）。
-- 修复：
-  - `looksPatchedAlready` 改用 `patchOwnMarkPresent`（只看我们写进去的标记/替换文本），目标态不再算「打过补丁」；
-  - `provenance: false` 标在 #2/#3/#50 上：它们的"标记"是官方句子，不能证明文件被我们改过；
-  - `revertAll` 开头先 `refreshStaleBaksForUpgrade`：升级后直接点还原也不会写回旧版本；
-  - `revertAll` 对 `size <= 0` 的 bak 拒绝写回，记 `backup_empty` 错误，目标保持原样。
-- 通过证据：入口三故障注入 5/5（full-backup / official-mark-refresh / stale-bak-refresh / stale-bak-not-written-back / empty-backup）；
-  管理生命周期 apply 47 个文件、52 个备份、revert 全部还原；真实安装 55 个目标文件未改动。
-- 边界之一（还原前的刷新会保守处理「用户手改过的目标」）：revert 前的 `refreshStaleBaksForUpgrade` 无法区分
-  「宿主升级」和「用户改过文件」，两者都会被当作新版内容而刷新 bak——这与 apply 时的既有假设一致，代价是这类
-  文件的还原点变成当前内容（no-op），不会产生数据损坏；没有证据支持做更激进的判断，故记录不修。
-- 边界之二：只有 #21 BASH_TIMEOUT_RESTORE 没有自证标记（它的产物就是官方值本身）。
-  若历史上它把插件抬起过的 timeout 恢复成官方值，revert 前的刷新会把该文件的 bak 刷成当前内容，
-  还原因此变成 no-op——不产生数据损坏，当前基线也不会进入这个状态。
-
-## 本票验收对应（#7 隔离宿主应用与跨版本恢复）
-
-- 完整备份 / 过期基线 / 不完整备份的代表性案例：入口三的 `backupFaults` 三条，加正常 apply/revert/重复应用。
-- 应用与重复应用稳定、状态与磁盘一致：管理生命周期记录 apply/reapply/revert 三次整树 diff（重复应用 0 改动）；
-  #6 的逐文件核对同时保证状态不靠叠加内容维持成功。
-- 恢复使用完整且属于对应宿主的基线：过期备份案例要求 bak 先刷新成当前官方内容，revert 不得写回旧版本；
-  0 字节备份被拒绝并报错。
-- 基线识别覆盖原有处理：`looksPatchedAlready` 只认我们写进去的标记/替换文本（含无字面 marker 的补丁），
-  不再被目标态误判；用户 profile patch 层仍不建 bak、不还原。
-- 错误路径明确、目标不被留成不完整内容：`backup_empty` 记入 revert 的 errors，目标字节不变。
-- 只纳入当前目标相关缺陷：本轮只改 `looksPatchedAlready` 与 `revertAll`（加刷新与空备份守卫），
-  未引入安装器/下载器或生命周期重构；未复现的候选（例如「恢复会删除目标」）保持原语义并有测试。
-- 写入范围：故障注入全部在 D 盘隔离副本；真实安装、保护基线、原始独立备份未改动。
-
-## 本票验收对应（#6 目标定位与适配状态）
-
-- 通过公开管理入口复现失配/假成功：#40 在修复前对 rc.5 的 complete 分支一次都命中不了（状态与应用都
-  skipped，注入段在 complete 预设下丢失）；#24 在未做任何处理的副本上一路报 applied，标记却是官方自己的
-  `fetch: true`；#84 则是状态落后于结果（应用链会改文件，状态报 skipped）。
-- 定位当前宿主实际模块与分支：只读定位列出每个键解析到的路径；#84 落在 `<install>/resources/app/lib/main.js`
-  的 close 回调，#40 落在 dsh-system-prompt 的 assemble complete 分支。桌面布局没有 npm 嵌套层，嵌套键在本轮
-  保持不适用并列出搜索位置，不做「反正有就用」的重复处理。
-- 保持基线语义、不整段替换：两条新匹配只补「等价表达形式」，替换文本与基线一致；#40 的替换保留 rc.5 的
-  requiredContexts 过滤，没有把上游新行为删掉或搬进来。
-- 状态与文件结果一致：patchEffectState 只看文件事实，patchOwnMarkPresent 再把「写进文件」与「宿主本就满足」
-  分开（#24 属于后者）；假成功 0 / 状态超前 0 / 状态落后 0；#21 这类布局软补丁单独列为「按布局结算」，
-  不计入成功证据。
-- 用隔离副本的应用与运行结果证明：入口五在 asar 解出的副本上走 purge_apply，再用宿主自己的 system-prompt
-  与桌面壳 close 回调整体跑分支，而不是断言 marker 出现。
-- 重复应用不追加、对照不被误命中：#84 的旧形态仍有专门用例；#24 的块外 fetch、tool-web 块内 fetch: false
-  都有反例；重复 purge_apply 与重复替换都是 0 改动。
-- 未复现/不适用项保留实现并提供证据：hooks-claude-code/codex、liangshen、unrestricted、user-approval 的
-  invariant.js 这些键在当前安装里不存在，报告逐条列出搜索过的位置（真实 DSH_HOME 与隔离副本分开列），
-  非可选的 #71 也标注「非可选」而不是当作成功；#32/#53/#77/#80 保持实现，状态是 skipped/对不上，
-  并在报告里逐条带落点，不用宽泛匹配放行。
-
-## 本票验收对应（#2）
-
-- 核对并保留当前源码、形成可校验快照：baseline.js 的清单/treeHash/自检与测试。
-- 确认目标宿主与指纹：baseline.js 的 hostFingerprint/pluginFingerprint/environmentFingerprint 与报告。
-- 隔离副本、配置、缓存、日志与测试端点都在 D 盘：isolate.js、预检、真实安装只读守卫与测试。
-- 宿主公开加载与请求准备最小案例：host-entry.js 与集成测试。
-- 公开管理操作最小隔离案例：admin-entry.js 与集成测试。
-- 先例探针局限：见上一节。
-- 期望来源与允许差异：见上一节。
-
-## 本票验收对应（#3 桌面宿主依赖解析与文件探测）
-
-- 复现与宿主布局、接口使用的关系：隔离副本导入 lib/redteam/tools.js 报 cannot resolve @deepseek-ai/dsh-tools；目标包就在 resources/app/dsh/node_modules，但旧候选只有 argv/DSH_HOME/cwd 与一条固定路径。报告 hostEntry.toolBridge.isolated.tried 逐条列出候选状态，修复前该列表没有任何 resolved 项。
-- 隔离桌面加载取得工具桥接依赖：host-entry 的 toolBridge 在隔离副本按 desktop-install:app-dsh 解析成功；同一锚点下只读加载真实宿主包也成功（模块顶层解析失败会直接抛错），报告记录 isolated / host / loaded 三段。
-- 文本入口、普通文件与非文本文件的区分、fd 读取/关闭/错误：admin-entry 的 fileProbe + fdProbe，配 hostfs.test.js。注意基线契约：shimFileStatus 只把带 shim 签名（#!、@echo、REM 、"# "）的文本当入口，普通文本与二进制同样返回 binary；探针断言的是“入口被注入、二进制字节不变、普通文件不被 shim 写入”。
-- 覆盖当前布局、不靠固定路径或任意命中：lib/host-deps.js 只接受“@deepseek-ai 根带 dsh-agent-instructions/lib”的候选，并要求解析结果落回该锚点范围（符号链接按真实路径复核）。旧实现的 D:\DeepSeek Harness\npm-global 固定路径兜底已删除；同形态的 CLI 布局由 argv 候选覆盖，host-deps.test.js 有专门用例。
-- 对照布局回归：同一解析器在 DSH_HOME/node_modules、~/.dsh 同构目录、npm 嵌套布局（@deepseek-ai/dsh/node_modules）、argv bin 布局与 resourcesPath/execPath 桌面锚点都有用例。这里只验证解析候选与身份核对，不构成 Web 端验收承诺（ADR 0001）。
-- 随 fd 修复暴露的必要路径缺陷：refreshStaleBaksForUpgrade 原先只看 dsh-purge 字面标记；agent-instructions 这类补丁把官方句子换成强句、不带该字串，备份真正落地后重复 apply 会把有效 bak 覆盖成已打补丁内容，revert 再也还原不回去。现按目标补丁的 marker/替换文本判断“文件已被我们打过”，实现与回归见 lib/core.js、hostfs.test.js，报告里的 reapply=0 / revert 还原 5 个是验收证据。
-- 不动工具 Schema/工具集合/预设：本票只加解析模块、fd 代理与验证入口字段。
+| 票 | 主题 | 记录 |
+| --- | --- | --- |
+| #2 | 封存 1.1.71 保护基线并建立最小隔离验证入口 | [records/issue-2.md](records/issue-2.md) |
+| #3 | 桌面宿主依赖解析与文件探测 | [records/issue-3.md](records/issue-3.md) |
+| #4 | 恢复现有预设加载并保持工具参数契约 | [records/issue-4.md](records/issue-4.md) |
+| #5 | 恢复模板渲染和完整提示词预设运行 | [records/issue-5.md](records/issue-5.md) |
+| #6 | 恢复 rc.5 目标定位并让适配状态反映实际结果 | [records/issue-6.md](records/issue-6.md) |
+| #7 | 隔离宿主应用与跨版本恢复的完整性 | [records/issue-7.md](records/issue-7.md) |
+| #11 | 验证 fixture 缓存 | [records/issue-11.md](records/issue-11.md) |
+| #13 | 验证工作区保留策略 | [records/issue-13.md](records/issue-13.md) |
+| #21 | web 身份句重定向到 dev-context + 窗口锚点 | [records/issue-21.md](records/issue-21.md) |
+| #22 | 回滚 append 改窗口式锚点 | [records/issue-22.md](records/issue-22.md) |
 
 ## CI 不是集成门（2026-11-03 记录）
 
@@ -390,209 +320,3 @@ DSH_HOME 里的已安装副本仍是旧写法时，报告只在「待自愈」�
 4. **deny 列表的落点**：旧配置写工具名（subagent_fork/workflow/ralph），新配置靠行 id
    （tool-subagent-fork/tool-workflow/tool-ralph）裁剪组合；两者由 lib/redteam/preset-migration.js 的
    LEGACY_DENIED_ROWS 一一对应，任何一边改名都会让裁剪失效（测试里用该常量断言数量）。
-
-## 本票验收对应（#4 恢复现有预设加载并保持工具参数契约）
-
-- 通过真实宿主预设与工具注册入口复现废弃配置的加载阻断：入口四的 legacy 段（旧 toolFilter 被 dsh-tool-subagent 拒绝），错误文本与本机 preset-declare.json 记录的一致。
-- 随包预设与已安装旧副本都核查；迁移保留用户内容、重复执行不叠加：migratePresetCopy 只改副本，报告列出删除/新增的行，第二次迁移 changed=false。
-- 废弃字段保持原配置含义：旧 deny 的三件工具改由子级预设 redteam-worker 裁掉（deriveWorkerRows 从父级组合裁剪），没有用“删掉字段换可加载”的办法；tool-subagent 行的 provider/toolName/maxDepth 等原值不变。上一节记录了无法完全等同的三处差异。
-- 预设能被宿主注册和选择、工具集合符合原契约：migrated / worker 两段挂载都通过，composition 通过宿主 entryListProblem；worker 相对父级只少那三行。
-- 对象与嵌套 Schema 通过宿主校验、参数契约保留：hostEntry.tools[].contract 的 validAccepted / extraRejected 案例。
-- 受控模型端点与无害工具调用：modelToolCall（有效调用成功）与 modelToolCallRejected（工具集外被拒）。
-- 只改必要实现：版本 1.1.71、localVersionLock、本地可编辑方式与远程更新锁都未改动（baseline.plugin 记录）。
-
-## 本票验收对应（#5 恢复模板渲染和完整提示词预设运行）
-
-- 先回归工作目录报错、已通过的不重复替换：CWD_ONLY_SUFFIX 与 identity.js 的目录句清理保持不变，本票没改提示词段，只补回宿主不再提供的 cwd 装配变量。
-- 旧模板、自定义模板、空或缺失后缀、正常与缺失工作目录：host-entry.js 的 templateContract 六案例；期望值取基线模板字面量，缺失目录时变量给空串，渲染不抛。
-- 完整提示词预设完成一次受控请求：promptPreset 的 assemble / render / template-in-assembly / baseline-sections / preset-persona / context / stability / required-context / refresh / suppressor-dispose / no-leftovers / no-duplication / request 十三项；随包预设的 persona 行载入装配，会话模式按该预设声明。
-- 宿主必需运行上下文与插件贡献的最终呈现：working-directory 按 dsh-working-directory 的公开契约注册（required、JSON 引号目录、不插值），抑制可选上下文后仍在、refresh 后仍在；受控请求的上下文消息命中它，系统消息命中 dsh-purge 正文。
-- 与保护基线比较、不宽泛忽略：段名与长度、变量集合、注入段份数、上下文段名逐项比较；report.ok 把模板契约与预设跑通算硬契约，不再降级成已知故障。
-- 重复组装与连续步骤稳定：两次装配的提示词、段、上下文一致；受控工具调用照旧（modelToolCall / modelToolCallRejected 未受本票影响）。
-- 版本与锁：1.1.71、localVersionLock（remoteUpdates:false、editable:true）未改动。`dshTarget` / `dshTargets` 是**插件声明的已适配版本**（手写常量，本机实测过 0.2.1-rc.5）；**实测宿主版本**只看报告的 `host.adaptation.version` 与 `host.adaptation.state`，两者不要混用（#18）。
-
-## 回归记录（#11 验证 fixture 缓存）
-
-- 背景与实测差异：票面记录的是「本机 78 个工作区 / 413 MB，单轮 verify ~2.5 分钟，绝大部分时间在从 182 MB 的
-  app.asar 重解宿主包」。本机复测只成立一半：整轮 `npm run verify` 43–48 s，fixture 步骤只有 1.1–1.4 s
-  （43 个包 / 7 MiB）。缓存按票实现，收益只落在 fixture 这一步——整轮由其余阶段决定，本轮没有逐阶段计时，
-  也不据此声称别处是瓶颈。
-- 实现：新增 `lib/verify/fixture-cache.js`，`prepareFixtureHost` 建副本前先看缓存。
-  - 键 = app.asar 的 size + mtime（毫秒取整）：换宿主、换包，键就变，旧目录自然不再命中。
-  - 命中：一次 `cpSync` 把 `_fixture-cache/<key>/desktop` 整棵复制到 `<stamp>/desktop`；未命中：逐包从 asar 解到
-    缓存目录**旁边的临时目录**，写清单后换名，再整棵复制出去。半成品不会变成命中。
-  - 完整性：清单里的键、宿主编译版本、**fixture 配方**（要解哪些包与额外依赖）、两层 `package.json`、每个包的
-    `package.json`、两份额外依赖逐项核对；缺一项就按核对给出的原因重建（报告 `fixture.rebuildReason` 记原因，例如
-    「包不完整（缺 package.json）：dsh-tools」）。配方必须单独比对：键只由 asar 决定，往 FIXTURE_PACKAGES 加包时
-    asar 没变、键也不变，不比对配方就会拿旧缓存静默少包——这正是规则 7 禁止的「用缺记录豁免让固定契约静默通过」，
-    #11 审查发现后补的。宿主编译版本同样参与判定：副本里两层 `package.json` 写的就是它，对不上时报告与副本会自相矛盾。
-  - 故障不放大：缓存目录写不进、被占用、并发抢占都只回退到「从 asar 解」，验证照常跑完；`fixture.cacheError` 留证据。
-  - 边界：缓存落在验证根目录旁边，不属于工作区；工作区快照（`snapshotTree(workspace.install)`）、保护基线（只走仓库源码）
-    与真实安装守卫（只核对真实安装 targetFiles）都看不到它。
-- 耗时对比（同一台机器，同一份 182 MB app.asar）：
-
-  | 阶段 | 改造前 | 改造后（未命中） | 改造后（命中） |
-  | --- | --- | --- | --- |
-  | fixture 步骤 | 1198 / 1112 ms（连续两次冷跑） | 1395 ms | 339 / 365 / 331 ms（三次） |
-  | 整轮 `npm run verify` | 43.3 s | 48.4 s | 47.8 s |
-
-  fixture 步骤命中时快 3.4–3.8 倍；整轮 43.3 → 47.8 s 的差异落在噪声里，因为 fixture 只占整轮约 3%——票面
-  「单轮 ~2.5 分钟、绝大部分时间在解包」的前提在本机不成立，本票不把它当收益写进结论。
-  取证口径：改造前的 1198/1112 ms 来自单独计时脚本（改造前报告还没有 fixture 段），改造后来自报告里的
-  `fixture.durationMs`（进 report.json）加整轮秒表，不是估算。
-  复现：删掉 `_fixture-cache` 目录 → 跑一次 `npm run verify`（未命中，顺带重建缓存）→ 再跑一次（命中），
-  对照 `report.json` 的 `fixture.cacheHit` 与 `fixture.durationMs`。
-- 通过证据：
-  - 单测 `tests/verify/fixture-cache.test.js` 九项：命中复制、size/mtime 失效、缺 package.json / 少包 / 清单损坏重建、
-    宿主版本不一致不复用、配方变了不复用、命中后复制失败不假装命中、缓存不可写不阻断、缓存根路径、报告 `fixture` 段区分
-    `asar` / `cache`。归档用「头表 + 数据区」的最小构造，断言的是缓存行为（落盘字节、两次 `snapshotTree` 全等、清单里的
-    配方）；真实 asar 由本入口与入口三覆盖。
-  - 集成（`tests/verify/host-admin.test.js`）：整轮验证里 `fixture.source` 只能是 `asar` 或 `cache`（不能拿真实安装充数），
-    缓存目录名匹配 `_fixture-cache/asar-<size>-<mtime>` 且不落在工作区内。
-  - 报告：`fixture.source` / `packages` / `extras` / `durationMs` / `cacheKey` / `cacheDir` / `cacheHit` /
-    `rebuildReason` / `cacheError`；`report.md` 的「隔离边界」一节逐条打印来源与耗时。
-
-## 本票验收对应（#11 验证 fixture 缓存）
-
-- 缓存键 = asar 的 size + mtime，目录在 D 盘 `tmp/dsh-purge-verify/_fixture-cache/<key>/`：`fixtureCacheKey` /
-  `fixtureCacheRoot`，单测「asar 的 size/mtime 变了就自动失效」逐项验证（只改 mtime、再改大小）。
-- 命中走 `cpSync`、未命中才从 asar 解，来源可区分：`prepareFixtureHost` 的两条返回路径，报告 `fixture.source` 取
-  `cache` / `asar` / `install`；`report.md` 分别打印「（命中缓存，整棵复制）」与「（从 app.asar 解）」。
-- 缓存不参与基线、不参与真实安装守卫：缓存目录在工作区外（集成测试断言 `isWithin(cacheDir, workspace.root) === false`），
-  基线只遍历仓库源码条目，守卫只 stat 真实安装的 targetFiles。损坏或不完整（缺 package.json / 少包 / 清单坏 / 宿主版本变 /
-  配方变）自动重建：单测「缺 package.json、少包、清单损坏都会重建」「宿主版本不一致时不复用旧副本」「配方变了就不复用」。
-- 命中时变快并记录对比：见上一节的耗时表（fixture 步骤 1.1–1.4 s → 0.33–0.37 s），并写清取证口径。
-- `npm run check` / `npm run test:ci` / `npm run verify` 全绿，缓存逻辑有单测（命中、失效、重建）：本轮三个命令各跑一遍通过
-  （check：93 个文件 / 2 个入口；test:ci：74 tests、74 pass、0 fail，含 49–52 s 的宿主集成用例；verify：报告 ok）。
-- 缓存只增不减（旧键不自动清理）：每份实测 6.6 MiB，删掉 `_fixture-cache` 目录即回收；自动清理不在本票范围——票面提到的
-  413 MB 工作区膨胀另有来源，本票只负责不再重建宿主副本。
-
-## 回归记录（#13 验证工作区保留策略）
-
-- 事实：`npm run verify` 每轮在验证根下建一个 5–6 MB 工作区且从不清理。本轮取证（2026-11-03 07:36，`Get-ChildItem
-  D:\dsh\tmp\dsh-purge-verify -Directory` 计数 + 递归求和）：86 个目录 / 484 MB；#11 票面写的是 78 / 413 MB。
-  #11 只解决「不再重建宿主副本」，不解决「只增不减」。
-- 实现：新增 `lib/verify/retention.js`，`runVerification` 在 `ensureWorkspace` 之后、准备 fixture 之前调用
-  `pruneWorkspaces`（根取自 `planWorkspace` 回传的 `base`，不再用 `dirname(workspace.root)` 反推）。四条规则：
-  只认 `<YYYYMMDD-HHMMSS>` / `probe-<同样的戳>` 两类名字；本轮工作区永不删（窗口是「最近 keep 个旧工作区」，本轮另算）；
-  30 分钟内有写入的目录不删（跳过的目录不占保留名额）；只碰验证根的直接子目录。
-- 「还在写」的判据是**目录树里任意一层**的 mtime，不是顶层目录：#13 实现时用的是顶层 mtime，review 指出 `ensureWorkspace`
-  建完子目录后顶层 mtime 就不再刷新，跑久的兄弟进程会被当陈旧删掉。现在 `scanTree` 边走边比，发现新 mtime 立刻收手。
-- 为什么按名字白名单而不是「删最旧」：`docs/compatibility/rc5-acceptance.md` 引用了 `acceptance-commit` 下的路径，
-  删掉就成了悬空引用；`_fixture-cache` 是 #11 的缓存，删掉只是下一轮变慢。名字白名单让这两类天然免疫。
-- 参数与报告：`--keep N`（默认 5）、`--no-prune`（关掉时报告写「已关闭（--no-prune）」，不是整段消失）。报告 `retention` 段记
-  enabled / root / keep / error / kept / removed / freedBytes / skippedCount / skippedReasons / skipped（前 10 条样例）。
-  `report.md` 与两个控制台共用 `describeRetention` 一段话（「保留最近 N 个旧工作区（本轮另算） · 删除 X 个 · 释放 Y MB ·
-  跳过 Z 个（原因 ×次数）」），避免三处各写一遍数字格式。
-- 记账口径：`freedBytes` 只在 `rmSync` 成功之后累加（删到一半失败的目录既不记「已释放」，也不会假装干净）；清理本身抛错
-  （例如根不是 D 盘）由 `resolveRetention` 记成 `retention.error`，验证照常跑完。
-- 通过证据：单测 `tests/verify/retention.test.js` 覆盖名字白名单与保留窗口、本轮保护、在跑保护、深写保护、keep=0、
-  越界不删、报告段、`--no-prune` 报告；`tests/verify/cli-args.test.js` 覆盖参数契约（默认值、`--keep` 两种写法、
-  `--no-prune`、`--stamp`/`--out-root`/`--no-seal`/`--json`）。集成在真实验证里跑一次清理，报告 `retention.removed`
-  记下实际删除的目录。
-
-## 本票验收对应（#13 验证工作区保留策略）
-
-- 只清自己的时间戳目录：`pruneWorkspaces` 的名字白名单（`STAMP_BODY` 与 `stampNow` 共用同一形状）+ 单测「只清自己的
-  时间戳目录」「不越界」。
-- 默认保留最近 5 个，`--keep` / `--no-prune` 可调：参数解析抽到 `lib/verify/cli-args.js` 并单测；`runVerification` 的
-  `retentionKeep` / `prune` 选项；单测「keep=0 只留本轮」。
-- 本轮工作区永不删、在跑的不删：单测「本轮工作区永不删：即使它落在保留窗口外」「最近还在写的目录不删」「深处还在写也算
-  在跑」；跳过原因按类计数进 `retention.skippedReasons`。
-- 释放量进报告、清理失败不阻断：`freedBytes` 只在删除成功后累加，删除异常记 `skipped[].reason = "删除失败：…"`；
-  `resolveRetention` 兜住抛错并写 `retention.error`。
-- 全绿：`npm run check` / `npm run test:ci` / `npm run verify` 本轮各跑一遍。
-
-## 回归记录（#21 web 身份句重定向到 dev-context + 窗口锚点）
-
-- 故障（rc.5 实测）：`#32`/`#53` 指向 `web-app-lib`，但这段提示词已搬到 `dsh-harness-dev-context/lib/index.js`：
-  `WEB_SURFACE_PROMPT` 整段（句尾从 `at ${webUrl}.` 换成 `whose URL the runtime context names.`）、
-  `LEGACY_WEB_SURFACE` 的 prefix/suffix，以及 `Current DeepSeek Harness Web GUI URL:` 那条运行时上下文。
-  旧整句锚点一次都命中不了：隔离副本里两条补丁是「不适用」，真机漂移清单 3 条（`#32`/`#53`/`#77`）。
-- 实现：
-  - 新增落点键 `dev-context`（`TARGET_FILE_KEYS` 64 → 65）：桌面布局 `dsh-harness-dev-context/lib/index.js`、
-    npm 嵌套 `dsh/node_modules/@deepseek-ai/…`、源码仓库 `packages/context/harness-dev-context/lib/index.js`。
-    旧键 `web-app-lib` 保留（老版本宿主与既有 `.dshpurge.bak` 仍认它），但两条补丁不再依赖它。
-  - `#32`/`#53` 改成窗口锚点：`const WEB_SURFACE_PROMPT =` 方法头钉死，中间用非贪婪窗口吃掉并原样搬回，
-    窗口里排除本插件 marker（A3 的口径，见 `docs/dsh-adaptation-backlog.md`）。窗口都带字符上限（2000 / 240 / 160），
-    右侧钉结构而不是钉句意：#32 收在语句结尾的 `` `; ``，`#53` 收在下一句 `When the user refers` 的开头——
-    两轴 review 用「句尾拉长」「两句连写」「上下文行换成普通字符串」三种改写试过：都只会失配进漂移，不会吞掉正文。
-    #32 只把产品名换成 local、句尾原样搬回；#53 再把身份句与「Do not start a replacement server」整句删掉。
-    #32 的第二条锚点另钉 `text: () => `…`` 这个字段形状（同文件还有一句 `Current DeepSeek Harness implementation
-    checkout`，只认品牌词会让窗口跨语句），并在行尾写同一枚标记：只命中一条时状态也看得见。
-  - `LEGACY_WEB_SURFACE` 是宿主**冻结**的旧段落（用来匹配老会话已记录的提示词），#53 的删除窗口以
-    `const LEGACY_` 为界跨不过去；故障对照里旧的整句锚点会把那份一起删掉，正是这条边界存在的理由。
-  - 标记分开：#32 写 `[dsh-purge] web surface identity neutralized`（写在语句行尾），#53 写
-    `[dsh-purge] web surface identity sentence dropped`（写在语句上方一行）。两处都在模板字面量之外，
-    不会进提示词正文。共用同一个标记会让 #32 的标记替 #53 结算状态（#53 一个字没写也报 applied）；
-    反方向（#53 删掉 #32 改名后的整句、#32 只剩标记）是有意保留的：删整句是更强的目标态，最终文件里
-    产品名一处不剩，由 `tests/verify/targets.test.js` 的 `DeepSeek Harness Web GUI` 计数钉住。
-  - 顺带修掉两条被新用例顶出来的问题：① `WEB_SURFACE_PROMPT` 的替换少一个空格（`localWeb GUI`）；
-    ② `targetFiles` 在 npm 嵌套布局里先把 4 个备用键（`*-nested`）并进 `files` 再做键集合比对，会当场报
-    「解析器多出」——改成「先比对注册键，再并 `nestedTargetFiles`」，这与 `ALT_FILE_KEYS`「不在注册表里」的约定一致。
-  - fixture 配方加 `dsh-harness-dev-context`：不加的话隔离副本里这两条永远是「不适用」，等于没有验收对象。
-    配方参与缓存核对，旧缓存自动重建（本轮 `fixture.durationMs` ≈ 3.2 s、`fixture.packages` = 44、缓存未命中一次）。
-- 通过证据（`20261103-160023` 报告）：
-  - 漂移清单只剩 `#77`（`conversation-client` 的 `append(record)`，属 A3-2）：`targets.isolated.drifted = [77]`。
-    真机 `unmatched` 仍是 `#21`/`#80`/`#77`，前两条是布局软结算/自标记型，本来就不进漂移清单。
-  - `#32`/`#53`：`statusAfter = applied`、`evidence = effective`、落点 `dev-context` —— 处理确实写进了文件，
-    不是「宿主本来就满足」。改写目标以本机 rc.5 原文为 fixture（`tests/verify/targets.test.js` 的 `RC5_DEV_CONTEXT`
-    逐字节抄自安装目录，含转义反引号），不是手写骨架。
-  - `admin.diffs`：apply.changed = 48（本票之前 47，新增的就是 dev-context 落点）、reapply.changed = 0、
-    revert.changed = 48 全部还原；`audit` 假成功 0 / 超前 0 / 落后 0。
-- 取舍（写进宿主的新文案）：`#53` 不再写回 `Local web GUI: ${webUrl}.`。rc.5 这一节是 `interpolate: false`，
-  而且 `webUrl` 变量根本不存在，写回去只会留下字面量；URL 现在由宿主自己的运行时上下文行给出，
-  所以身份句是整句删除。补丁写进宿主的语义（去掉身份句与禁止另开服务器）没变。
-
-## 本票验收对应（#21 web 身份句重定向与窗口化）
-
-- 新键覆盖三种布局，且不把备用键判成漂移：`tests/verify/targets.test.js`「目标定位：dev-context 键覆盖桌面布局、
-  npm 嵌套与源码仓库」逐条断言（含嵌套布局下 `system-prompt-nested` 合法出现）。
-- 隔离副本从 skipped/unmatched 变成 applied：报告 `targets.isolated` 的 `#32`/`#53` 行 = applied / effective，
-  落点 `dev-context`；`targets.isolated.drifted` 只剩 `#77`。
-- 故障对照（把锚点改回旧的 `web-app-lib` 写法就红）：同文件「故障对照：把锚点改回旧 web-app-lib 写法，这一组必须红」——
-  旧整句锚点在 rc.5 文本上一次都不命中（`patchEffectState = unmatched`），旧的字面删除还会把 LEGACY 里冻结的那份删掉。
-- 原文不许动：`#53` 之后 `LEGACY_WEB_SURFACE` 整段与原文逐字节相同；身份句/禁止句在全文里各只剩 legacy 那一份。
-- 真机 `npm run verify`：通过，漂移清单少这两条（`targets.isolated.drifted` 只剩 `#77`），其余入口不变；
-  apply 文件数 47 → 48 是新增的 `dev-context` 落点（`admin.diffs.apply.changed`）；`npm run check` 与
-  `npm run test:ci` 全绿。
-
-## 回归记录（#22 回滚 append 改窗口式锚点）
-
-- 故障（rc.5 实测）：`#77` 的锚点是 `append(record)` 到 `this.inputs.set(event.seq, record)` 的整段字面量，
-  里面把 `this.revised.clear();` 写成无条件调用；rc.5 改成 `if (this.revised.size > 0) this.revised.clear();`，
-  并在 `inputs.set` 之后插了 locationIndex 一段 → 整段锚点一次都命中不了，隔离副本里 `#77` 报 drifted。
-- 实现：
-  - 锚点改成窗口式（A3 口径）：`append(record) {`、`const event = record.event;`、去重判断钉死，
-    右界钉在 `this.inputs.set(event.seq, record);`，中间用非贪婪窗口
-    `(?:(?!\[dsh-purge\])[\s\S]){0,400}?` 吃掉并原样搬回 —— rc.5 改写的那句与宿主以后在中间加的行都跟着走。
-  - 插入逻辑复用 `#56` 已经插进同一个文件的 `isRewindMarker`（`ConversationNodeAssembler` 之前那段），不另造第二份判定；
-    外面套 `typeof isRewindMarker === "function"` —— `#56` 一旦漂了，`append` 保持原样，
-    不会因为 ReferenceError 把整个对话面板打死。
-  - 窗口排除本插件 marker：除了 `skipIfMarked`，关掉它二次 apply 也不叠加（`{ ...patch, skipIfMarked: false }` 用例钉住）。
-  - 插入点仍在 `revised.clear` 之前：命中回退标记时早退，不白清临时集。
-- 通过证据（本轮 `npm run verify` 报告 `20261103-171028`；对照 #21 那轮 `20261103-160023`）：
-  - `targets.isolated.drifted = []`（#21 那轮同一字段是 `[77]`）、`targets.isolated.statusAfter["77"] = applied`；
-    `targets.live.unmatched` 只剩 `#21`（布局软结算）与 `#80`（自标记型），这两条本来就不进漂移清单。
-  - `admin.diffs`：apply.changed = 48（不变，`client.js` 本来就被 `#56` 改过）、reapply.changed = 0、
-    revert.changed = 48 全部还原；报告「状态与文件一致」段：假成功 0 / 超前 0 / 落后 0 / 布局结算 1。
-- 口径：报告里有两个「漂移」计数，不要混。A2 的 `targets.*.drifted` 清单是本票口径（与 #20 诊断同一份），
-  已清零；`purge_apply` 回执里的 `漂移=` 是 patchStatus 的计数，还带着 `#50/#57/#62` 这类既存项。
-- 退化路径：`#56` 一旦漂了、`isRewindMarker` 不在作用域，`#77` 的插入分支会静默不生效（守卫不让 `append` 崩），
-  但标记仍会被写进文件、状态仍报 applied —— 所以依赖本身由 `tests/verify/targets.test.js` 的
-  「#77 的插入依赖 #56」一条机械盯住（同落点、先应用、只由 #56 定义），`#56` 漂移也会同时出现在漂移清单里。
-- 取舍：写进宿主的语义没变（回退标记到达时立刻把已发送消息从当前对话拿掉），只改锚点写法与函数复用方式。
-
-## 本票验收对应（#22 回滚 append 窗口化）
-
-- 隔离副本上该补丁 applied、重复应用不改文件：`tests/verify/targets.test.js`「回滚 append：rc.5 的 append
-  由窗口锚点认出…」断言 `pending → applied`、再应用 `changed = false`、插入只有一份；真机报告
-  `admin.diffs.reapply.changed = 0`。
-- 故障对照：同文件「故障对照：把 #77 的锚点改回整段写法，这一组必须红」把旧整段锚点钉成 `unmatched`——
-  谁把锚点改回去，前一条立刻红。
-- 窗口有界 + 排除 marker：同文件「窗口有界：append 里多插一大段时宁可失配…」与第一条里的
-  `{ ...patch, skipIfMarked: false }` 断言；A3 的「窗口必须写上界」惯例由 `tests/lib/patch-table.test.js` 兜底。
-- 宿主原文不许手写：rc.5 的整段 `append()` 方法体登记在 `tests/verify/host-text-fixtures.js`，
-  由 `host-text-fixtures.test.js` 回真机核对子串；用例里的类头/类尾只是胶水。
-- 真机 `npm run verify`：通过，`targets.isolated.drifted = []`（3 → 1 → 0）；`npm run check` 通过、
-  `npm run test:ci` 全绿。
