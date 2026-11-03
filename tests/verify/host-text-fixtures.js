@@ -39,4 +39,36 @@ export const HOST_TEXT_FIXTURES = [
         "\t\ttext: () => `Current DeepSeek Harness Web GUI URL: ${JSON.stringify(ctx.webApp.getAdvertisedUrl())}.`",
     },
   },
+  {
+    // #22：ConversationNodeAssembler.append 的方法头到 inputs.set 这一段（含 rc.5 改写的 revised.clear 写法）。
+    // 旧 #77 的整段锚点把这条语句写成 `this.revised.clear();`，rc.5 改成 `if (this.revised.size > 0) …` 后就一次都命中不了。
+    id: "conversation-client",
+    package: "dsh-client-ui-conversation",
+    relative: "lib/client.js",
+    texts: {
+      append: [
+        "\t\t\tappend(record) {",
+        "\t\t\t\tconst event = record.event;",
+        "\t\t\t\tif (this.inputs.has(event.seq)) return \"none\";",
+        "\t\t\t\tif (this.revised.size > 0) this.revised.clear();",
+        "\t\t\t\tthis.inputs.set(event.seq, record);",
+        "\t\t\t\tlet publication = \"none\";",
+        "\t\t\t\tif (event.type !== \"assistant/live-chunk\" && isLocationBoundary(event.type)) {",
+        "\t\t\t\t\tconst previousTimeline = this.locationIndex.snapshot();",
+        "\t\t\t\t\tconst changed = this.locationIndex.appendBoundary(event);",
+        "\t\t\t\t\tif (this.locationIndex.snapshot() !== previousTimeline) {",
+        "\t\t\t\t\t\tthis.timelineDirty = true;",
+        "\t\t\t\t\t\tpublication = \"immediate\";",
+        "\t\t\t\t\t}",
+        "\t\t\t\t\tthis.replayContexts(this.refreshMatchLocations(changed));",
+        "\t\t\t\t\tif (changed.size > 0) publication = \"immediate\";",
+        "\t\t\t\t} else this.locationIndex.appendNonBoundary(event);",
+        "\t\t\t\tpublication = maximumPublication(publication, this.matchInput(record));",
+        "\t\t\t\tif (this.replayRevisedDependents()) publication = \"immediate\";",
+        "\t\t\t\tif (this.revised.size > 0) this.revised.clear();",
+        "\t\t\t\treturn publication;",
+        "\t\t\t}",
+      ].join("\n"),
+    },
+  },
 ];

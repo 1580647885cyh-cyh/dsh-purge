@@ -465,3 +465,89 @@ test("目标定位：dev-context 键覆盖桌面布局、npm 嵌套与源码仓�
     for (const dir of dirs) fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+/**
+ * rc.5 的 ConversationNodeAssembler.append（#22）：整段方法体逐字节来自 host-text-fixtures
+ * （由 host-text-fixtures.test.js 回真机核对子串）。外面只包一层类头/类尾，让窗口两侧有同形的邻句。
+ */
+const CLIENT_TEXTS = HOST_TEXT_FIXTURES.find((entry) => entry.id === "conversation-client").texts;
+const APPEND_METHOD = CLIENT_TEXTS.append;
+const CLASS_TAIL = pad(2) + "};";
+const RC5_CLIENT = [pad(2) + "var ConversationNodeAssembler = class {", APPEND_METHOD, CLASS_TAIL].join("\n");
+/** rc.5 改写的那句（方法体里出现两次，窗口内是第一处）。 */
+const REVISED_LINE = APPEND_METHOD.split("\n").find((line) => line.includes("this.revised.clear();"));
+/** 右界之后的一切：断言拿宿主原字节比，不用手写串。 */
+const TAIL_AFTER_SET = APPEND_METHOD.slice(APPEND_METHOD.indexOf("this.inputs.set(event.seq, record);"));
+
+test("回滚 append：rc.5 的 append 由窗口锚点认出，宿主新插的段原样搬回（#22）", () => {
+  const patch = patchOf(77);
+  assert.deepEqual(patch.file, ["conversation-client"], "#77 的落点不变");
+  assert.equal(patchEffectState(RC5_CLIENT, patch, "client.js"), "pending", "rc.5 的 append 应被认成「还有待改」");
+
+  const first = applyReplacementsToText(RC5_CLIENT, patch, "client.js");
+  assert.equal(first.changed, true, "rc.5 的 append 必须被认出（旧的整段锚点一次都命中不了）");
+  assert.ok(first.text.includes("[dsh-purge] rewind drops sent messages in this conversation"), "要留下标记");
+  // 复用 #56 已经插进这个文件的 isRewindMarker：判「这是不是回退标记」只许有一份实现。
+  assert.ok(first.text.includes("isRewindMarker(event)"), "插入逻辑要调宿主文件里已有的 isRewindMarker");
+  assert.equal(first.text.includes("function isRewindMarker"), false, "不许在这个替换文案里另造一个 isRewindMarker");
+  // #56 漂了时只退回「不丢消息」，不让 append 抛 ReferenceError 打死面板 —— 守卫本身要能被测试盯住。
+  assert.ok(first.text.includes('typeof isRewindMarker === "function"'), "守卫必须写进被改写的文件");
+  // 插入点在 revised.clear 之前：命中回退标记时早退，不白清临时集。
+  assert.ok(
+    first.text.indexOf("return this.replaceWindow(entries, this.hasMore);") < first.text.indexOf(REVISED_LINE),
+    "插入必须落在 rc.5 的 revised.clear 那句之前",
+  );
+  assert.ok(first.text.includes(REVISED_LINE), "rc.5 改写的 revised.clear 那句要原样搬回");
+  // 右界之后逐字节等于宿主原文：locationIndex 那段（含 rc.5 新加的分支）一个字都不许动。
+  assert.equal(
+    first.text.slice(first.text.indexOf("this.inputs.set(event.seq, record);")),
+    TAIL_AFTER_SET + "\n" + CLASS_TAIL,
+    "窗口右侧钉住 inputs.set，后面 locationIndex 那段一个字都不许动",
+  );
+  assert.equal(patchEffectState(first.text, patch, "client.js"), "applied");
+  assert.equal(applyReplacementsToText(first.text, patch, "client.js").changed, false, "重复应用不得再改");
+  // 关掉 skipIfMarked 也照样不叠加：窗口本身跨不过自己写的 marker（A3 的口径）。
+  const forced = applyReplacementsToText(first.text, { ...patch, skipIfMarked: false }, "client.js");
+  assert.equal(forced.changed, false, "窗口里排除本插件 marker，二次应用不叠加");
+  assert.equal(forced.text.split("return this.replaceWindow(entries, this.hasMore);").length - 1, 1, "插入只有一份");
+});
+
+test("故障对照：把 #77 的锚点改回整段写法，这一组必须红（#22）", () => {
+  // 旧 #77 的锚点 = 宿主原文里把 rc.5 改写的那句换回旧写法，再连同 inputs.set 一起写死。
+  const legacyPattern = (
+    APPEND_METHOD.slice(0, APPEND_METHOD.indexOf("this.inputs.set(event.seq, record);")) +
+    "this.inputs.set(event.seq, record);\n"
+  ).replace(REVISED_LINE, pad(4) + "this.revised.clear();");
+  const legacy = {
+    ...patchOf(77),
+    replacements: [{ pattern: legacyPattern, replace: "legacy" }],
+  };
+  assert.equal(legacyPattern.includes("if (this.revised.size > 0)"), false, "旧写法里没有 rc.5 那句");
+  assert.equal(applyReplacementsToText(RC5_CLIENT, legacy, "client.js").changed, false, "整段锚点在 rc.5 命中不了——这就是 #22 的故障现象");
+  assert.equal(patchEffectState(RC5_CLIENT, legacy, "client.js"), "unmatched");
+});
+
+test("窗口有界：append 里多插一大段时宁可失配，也不跨语句吃正文（#22）", () => {
+  const patch = patchOf(77);
+  const widened = RC5_CLIENT.replace(REVISED_LINE, pad(4) + "// " + "x".repeat(600) + "\n" + REVISED_LINE);
+  assert.notEqual(widened, RC5_CLIENT, "fixture 必须真的多插了一段");
+  const out = applyReplacementsToText(widened, patch, "client.js");
+  assert.equal(out.changed, false, "超过窗口上限就失配（进漂移），不许一路吃到 inputs.set");
+  assert.equal(out.text, widened, "失配时一个字都不许改");
+});
+
+test("#77 的插入依赖 #56 写进同一文件的 isRewindMarker（顺序 + 归属，机械判定）", () => {
+  // 守卫兜住「#56 漂了」的运行时后果（退回不丢消息），但那条分支会静默失效；
+  // 所以依赖本身要能被测试盯住：同落点、先应用、只由 #56 定义。
+  const hide = patchOf(56);
+  const drop = patchOf(77);
+  assert.deepEqual(drop.file, hide.file, "两条补丁必须落在同一个文件");
+  assert.ok(
+    ALL_PATCHES.findIndex((item) => item.id === 56) < ALL_PATCHES.findIndex((item) => item.id === 77),
+    "#56 必须先应用：isRewindMarker 由它写进同一个文件",
+  );
+  const hideText = hide.replacements.map((item) => item.replace).join("\n");
+  assert.ok(hideText.includes("function isRewindMarker"), "#56 负责定义 isRewindMarker");
+  const dropText = drop.replacements.map((item) => item.replace).join("\n");
+  assert.equal(dropText.includes("function isRewindMarker"), false, "#77 只调用，不定义");
+});

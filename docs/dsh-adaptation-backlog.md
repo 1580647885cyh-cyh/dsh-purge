@@ -46,8 +46,10 @@
 
 ### A3 · 窗口锚点（补丁健壮性）
 
-**状态：#21（web 身份句）已落地**——落点从 `web-app-lib` 改到 `dev-context`，两条补丁换成窗口锚点，
-本机漂移清单 `targets.isolated.drifted` 由 3 条降到 1 条（只剩 #77）。#22（回滚 append）待做。
+**状态：#21 / #22 已落地**——#21 把 web 身份句的落点从 `web-app-lib` 改到 `dev-context`（#32/#53），
+#22 把回滚 `append()` 换成窗口锚点（#77，复用 #56 已插进同一个文件的 `isRewindMarker`）。
+本机漂移清单 `targets.isolated.drifted` 已清零（诊断 3 条 → #21 后 1 条 → 本轮 0 条，口径见
+`docs/verification/README.md` 的 #21 / #22 回归记录）。
 
 - **宿主侧**：官方改函数时**在中间加行**（rc.2 → rc.3 又改一次），整段写死就永远失配。
 - **上游对策**：只锚方法头 + event 取值 + 去重判断 + 结尾 `set`，中间用非贪婪窗口
