@@ -54,6 +54,7 @@ node scripts/verify.mjs --json # 输出机器可读报告
 | `targets.live` | 真机安装的同类事实（无 `statusBefore/After`，另有 `shellFile` / `shellCandidates`） |
 | `targets.audit` | 状态与文件是否一致：`falseSuccess`、`ahead`、`behind`、`settledByLayout` |
 | `targets.runtime` | 入口五的运行结果证明：`completePrompt`、`shell`、`presetFetch` |
+| `targets.desktop` | 入口五的 NEXT 安装树（A4 / #24）：`facts`（形态 / exe / 是否换包 / 壳入口 / 进程名）与逐条 `cases`（含 `control-red` 拔名单对照） |
 | `modelToolCall` / `modelToolCallRejected` | 受控端点上的有效调用与工具集外调用 |
 | `presetEntry` / `presetMigration` / `presetAudit` | 预设注册、迁移与静态审计 |
 | `pendingSelfHeal` | 已安装副本仍是旧写法、等下次启动自愈的项（不算失败） |
@@ -185,6 +186,10 @@ node scripts/verify.mjs --json # 输出机器可读报告
 - 运行结果证明（都带故障对照，不是只看字符串）：
   - 完整提示词装配：在应用后的副本里 import 宿主自己的 dsh-system-prompt，挂一个 complete 段 + dsh-purge 段 + required 上下文，走 assemble；要求注入段与 complete 段共存、抑制运行上下文后 required 仍在。对照：同一装配在未打补丁的真实宿主上必须丢掉注入段。
   - 桌面壳 close 回调：从 app.asar 解出 lib/main.js，先在未打补丁的入口上跑 code=0（必须报错），再按补丁替换后跑 code=0 / code=3；要求前者不 fail、后者报错、重复应用 0 改动。
+  - NEXT 发行形态（A4 / #24）：在工作区里造一棵 `DSH NEXT` 安装树（exe + `resources/app` + 可选 app.asar 变体），
+    用同一份生产名单核对四项：exe 定位、壳入口、带 asar 变体不换包、win32 进程名集合含 NEXT（报告 `targets.desktop`）。
+    `surface` 只记事实（resources 启发式本来就能把桌面判出来）；形态（`form`）与另外三项一起判红——
+    认不出形态，后面三项必然为空。差异见 [records/issue-24.md](records/issue-24.md)。
   - preset fetch 落地：在副本上把 tool-web 的 fetch 改成 false，再走公开的 purge_apply；要求重新打开并写回标记，重复应用不追加。
 - 宿主版本与适配状态（A1 / #18）：读桌面壳 `resources/app/package.json` 的 version，与插件声明的 `dshTarget` / `dshTargets` 精确比对，分「已适配 / 未适配 / 未知」三态。**三态都不影响 record.ok**——未适配只写进报告与状态，不挡 Apply（阻断会把人锁在门外）。
 - 漂移清单（A2 / #19）：文件在、但既不是目标态也没有可改的原文，且不属于布局软结算的补丁，逐条列成「补丁 → 文件 → 没命中的锚点（首行 80 字符）」。布局软补丁仍走「按布局结算」，不混进漂移。漂移不挡 Apply，但状态词必须写 `drifted`，不能压成 `skipped` / `applied`。
@@ -265,6 +270,7 @@ DSH_HOME 里的已安装副本仍是旧写法时，报告只在「待自愈」�
 | #13 | 验证工作区保留策略 | [records/issue-13.md](records/issue-13.md) |
 | #21 | web 身份句重定向到 dev-context + 窗口锚点 | [records/issue-21.md](records/issue-21.md) |
 | #22 | 回滚 append 改窗口式锚点 | [records/issue-22.md](records/issue-22.md) |
+| #24 | DSH NEXT 识别：拆发行形态 / 是否解 asar / 壳入口三事实 + fixture 红绿 | [records/issue-24.md](records/issue-24.md) |
 
 ## CI 不是集成门（2026-11-03 记录）
 
@@ -299,6 +305,8 @@ DSH_HOME 里的已安装副本仍是旧写法时，报告只在「待自愈」�
 - lib/verify/backup-faults.js：备份/恢复故障注入（完整备份 / 过期备份 / 0 字节备份）。
 - lib/verify/targets.js：目标定位与逐文件目标态判定（含不适用键的搜索证据）。
 - lib/verify/target-entry.js：入口五编排、完整提示词装配与桌面壳 close 回调的运行结果证明。
+- lib/desktop-forms.js：桌面发行形态名单（harness / desktop / next），①形态 ②是否解 asar ③壳入口 各读各的字段。
+- lib/verify/desktop-next.js：入口五的 NEXT 安装树 fixture 与四项事实（含拔名单的故障对照）。
 - lib/verify/report.js：报告构建与 Markdown 渲染。
 - lib/verify/run.js：完整流程编排。
 - scripts/verify.mjs：命令行入口。

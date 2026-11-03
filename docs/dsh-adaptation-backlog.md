@@ -60,8 +60,14 @@
 
 ### A4 · DSH NEXT 识别
 
+**状态：已落地（#24）**。形态 / 是否解 asar / 壳入口拆成三件独立事实，名单只有一份
+`lib/desktop-forms.js`；NEXT 落在「认得出、不换包、壳入口照常定位」这一格，
+fixture 在入口五逐项落报告（`targets.desktop`）。「不解包」= 不在名单的解包格里，不是黑名单；
+认不出的 exe 保留老兜底（差异与取舍见 `docs/verification/records/issue-24.md`）。
+
 - **宿主侧**：出现第三个发行形态 `DSH NEXT.exe`（**不解 asar**）。
-- **我们现状**：`lib/desktop.js` 只认 `DeepSeek Harness.exe` 与 `DSH Desktop.exe`，无 NEXT。
+- **我们现状（A4 前）**：`lib/desktop.js` 只认 `DeepSeek Harness.exe` 与 `DSH Desktop.exe`，无 NEXT；
+  「解不解包」与「壳入口在哪」都从 `isOfficialHarnessExecutable` 那一个布尔推。
 - **要做**：加 exe 名 + "不解包"分支；`lib/surface.js` 同步。
 
 ### A5 · 桌面静默退出的退出码留痕
