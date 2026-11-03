@@ -9,6 +9,19 @@
 - 解析与身份核对：`lib/host-deps.js`；验证侧封装：`lib/verify/host-entry.js` 的 `resolveHostInstall` / `loadHostModules`。
 - **版本真源**：适配判定读桌面壳的 `<install>/resources/app/package.json`（`@deepseek-ai/dsh-desktop`），**不读** `resources/app/dsh/package.json` 里的运行时版本；判定与三态在 `lib/host-version.js`（A1 / #18）。未适配不阻断，只进报告与状态。
 
+## 提示词与关键文本在哪个包（改锚点前先查这张表）
+
+补丁里的 `file` 键是「**我们认为**它该在哪」，宿主改版后可能过期。漂移清单里某条锚点在原文件 0 命中、
+却在别的包出现 → 先怀疑搬家，别急着改窗口。
+
+| 内容 | rc.5 落点 | 备注 |
+| --- | --- | --- |
+| web 面身份句 + `Do not start a replacement server` | `dsh-harness-dev-context/lib/index.js` | `WEB_SURFACE_PROMPT` 整段，以及 `prefix` / `suffix` 拆开的两半；`dsh-web-app/lib/index.js`（181 行）已不含这些句子 |
+| 系统提示词装配 / complete 分支 | `dsh-system-prompt/lib/index.js` | 键 `system-prompt` |
+| 回滚 append / rewind | `dsh-client-ui-conversation/lib/client.js` | `append(record)`、宿主自带 `isRewindMarker` |
+| 审批句与 invariant | `dsh-user-approval/lib/index.js`、`lib/types/index.js`、`lib/invariant.js` | 键 `user-approval*` |
+| agent instructions | `dsh-agent-instructions/lib/index.js` | 键 `agent-instructions` |
+
 ## 服务与入口
 
 | 用途 | 包 | 入口 | 契约要点 |

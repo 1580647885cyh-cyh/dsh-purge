@@ -139,6 +139,13 @@ node scripts/verify.mjs --json # 输出机器可读报告
   `--no-seal` 报漂移、恢复材料也对不上。
 - 「未执行的检查」逐条列出（真实 Electron 进程、真实模型网络、Web/macOS/Linux 与其他版本），不因为没报错就当作通过。
 
+### running 的两个坑（2026-11-03 复盘）
+
+- `npm run acceptance -- --out DIR` 会被 npm 吞成位置参数（`--out` 变成未知配置）：写记录要用
+  `node scripts/acceptance.mjs --out DIR --name rc5-acceptance`，否则记录里的命令行与实际产物名对不上。
+- `acceptance` 只打印**记录**路径；这一轮的隔离验证报告在 `D:\dsh\tmp\dsh-purge-verify\<stamp>\out\report.md`，
+  要最新一份就按目录 mtime 取，别按名字排序（旧目录叫 `smoke2`、`report-check2` 之类）。
+
 ## 入口五：目标定位与适配状态（#6）
 
 模块：lib/verify/targets.js、lib/verify/target-entry.js。

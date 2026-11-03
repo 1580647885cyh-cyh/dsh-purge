@@ -20,7 +20,7 @@
 - **宿主侧**：0.2.1-rc.2 → rc.5 之间宿主文件继续变形；上游把 `dshTarget` 扩成
   `dshTargets: ["0.2.1-rc.2", "0.2.1-rc.5"]`，并加 `HOST_TARGETS` / `hostCompat()` /
   `parseHostVersion()` / `readHostVersion(aiBase)`（上游 `d1eff01` 1.1.88、`6f9c500` 1.1.84）。
-- **我们现状**：`package.json` 的 `dshTarget` 仍是 `0.2.0-rc.2`；全仓只有 baseline/acceptance
+- **历史现状（A1 前）**：`package.json` 的 `dshTarget` 曾是 `0.2.0-rc.2`；当时全仓只有 baseline/acceptance
   **记录**这个字段（`lib/verify/baseline.js:182`、`lib/verify/acceptance.js:97`），没有任何门禁。
 - **要做**：① `dshTarget` 改成实测宿主（当前 0.2.1-rc.5），并列 `dshTargets`；
   ② 读到不支持的宿主版本时，报告里明确写"未适配 <版本>"而不是假装绿；③ 同一补丁按版本给分支变体。
