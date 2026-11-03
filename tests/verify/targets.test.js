@@ -267,18 +267,26 @@ test("适配状态：自标记型补丁找不到痕迹不算漂移（与 patchSt
   }
 });
 /**
- * 0.2.1-rc.5 的 dsh-harness-dev-context/lib/index.js 骨架（#21）：身份句只在这里出现一次，
- * LEGACY_WEB_SURFACE 里还有一份**冻结**的旧段落（宿主拿它匹配老会话已记录的提示词）。
- * 三条上下文行用来钉住「窗口不许跨语句」：checkout 那句与身份句长得像，URL 描述那句才是落点。
+ * 0.2.1-rc.5 的 dsh-harness-dev-context/lib/index.js **原文**（逐字节抄自本机安装，2026-11-03 实测）：
+ * `WEB_SURFACE_PROMPT` 整段（含 \` 转义反引号与 HMR 段）、`LEGACY_SOURCE` / `LEGACY_WEB_SURFACE` 的
+ * prefix/suffix、以及两条 `Current DeepSeek Harness …` 运行时上下文行。
+ *
+ * 不缩写成手写骨架：窗口锚点要处理的正是这些转义反引号（`[^\`]` 会停在第一个 \` 上）与长句，
+ * 骨架证明不了它对真实字节成立。LEGACY_* 里也各有身份句与「Do not start a replacement server」——
+ * 那是宿主用来匹配老会话已记录段落的两半，删掉等于让它们重写日志，所以两份原文都必须进来。
  */
 const RC5_DEV_CONTEXT = [
+  "const WEB_SURFACE_PROMPT = `You are interacting with the user through the DeepSeek Harness Web GUI whose URL the runtime context names. When the user refers to \"this page\", \"this GUI\", or \"this app\" without naming another target, they mean this GUI. The browser provides no implicit DOM, route, or screenshot context. The client-plugin HMR receiver is active, but client-plugin changes reload without a refresh only while \\`pnpm run dev:web\\` is also running from this same checkout to rebuild their bundles; verify that watcher before promising automatic updates. Every other change — the apps/web shell and plain packages — requires rebuilding the affected Web artifacts and verifying this existing URL after a page refresh. Starting another server does not update this GUI. The apps/web Vite entry builds the shell but is not a standalone application because only dsh web injects window.__DSH_BOOT__. Do not start a replacement server unless the user asks; if one is needed, use a managed background job and verify its exact URL.`;",
   "const HARNESS_SOURCE_PROMPT = `The runtime context names the DeepSeek Harness implementation checkout.`;",
-  "const WEB_SURFACE_PROMPT = `You are interacting with the user through the DeepSeek Harness Web GUI whose URL the runtime context names. When the user refers to \"this page\" they mean this GUI. Do not start a replacement server unless the user asks; if one is needed, use a managed background job and verify its exact URL.`;",
-  "/** Frozen text around the value in each paragraph. */",
-  "const LEGACY_WEB_SURFACE = {",
-  '\tprefix: "You are interacting with the user through the DeepSeek Harness Web GUI at ",',
-  '\tsuffix: ". When the user refers to \\"this page\\" they mean this GUI. Do not start a replacement server unless the user asks; if one is needed, use a managed background job and verify its exact URL."',
+  "const LEGACY_SOURCE = {",
+  "\tprefix: \"The DeepSeek Harness implementation checkout is at \",",
+  "\tsuffix: \". The checkout location and current working directory are separate values and may differ; never infer the working directory from this path. Use pwd to determine the current working directory. Use this checkout only to inspect or extend DSH itself.\"",
   "};",
+  "const LEGACY_WEB_SURFACE = {",
+  "\tprefix: \"You are interacting with the user through the DeepSeek Harness Web GUI at \",",
+  "\tsuffix: \". When the user refers to \\\"this page\\\", \\\"this GUI\\\", or \\\"this app\\\" without naming another target, they mean this GUI. The browser provides no implicit DOM, route, or screenshot context. The client-plugin HMR receiver is active, but client-plugin changes reload without a refresh only while `pnpm run dev:web` is also running from this same checkout to rebuild their bundles; verify that watcher before promising automatic updates. Every other change — the apps/web shell and plain packages — requires rebuilding the affected Web artifacts and verifying this existing URL after a page refresh. Starting another server does not update this GUI. The apps/web Vite entry builds the shell but is not a standalone application because only dsh web injects window.__DSH_BOOT__. Do not start a replacement server unless the user asks; if one is needed, use a managed background job and verify its exact URL.\"",
+  "};",
+  "const LEGACY_PROMPT = \"harnessDevLegacyPrompt\";",
   "function apply(ctx) {",
   "\tctx.systemPrompt.context({",
   "\t\ttext: `Current DeepSeek Harness implementation checkout: ${JSON.stringify(SOURCE_ROOT)}.`",
@@ -314,7 +322,8 @@ test("web 身份句：rc.5 的掉包落点由窗口锚点认出，重复应用�
   assert.ok(first.text.includes("through the local Web GUI whose URL the runtime context names."), "产品名换成 local，句尾原样搬回");
   assert.equal(first.text.includes("DeepSeek Harness Web GUI whose URL"), false, "产品名不许留在身份句里");
   assert.ok(first.text.includes("[dsh-purge] web surface identity neutralized"), "要留下标记");
-  assert.ok(first.text.includes("Current local web GUI URL: "), "URL 描述那句同样去掉产品名");
+  assert.ok(first.text.includes("Current local Web GUI URL: "), "URL 描述那句同样去掉产品名");
+  assert.equal(countOf(first.text, "[dsh-purge] web surface identity neutralized"), 2, "两条锚点各自留标记：只命中一条时也看得见");
   assert.ok(first.text.includes("Current DeepSeek Harness implementation checkout"), "checkout 那句不是身份句，不许被顺手改掉");
   assert.equal(patchEffectState(first.text, identity), "applied");
   assert.equal(applyReplacementsToText(first.text, identity, "index.js").changed, false, "重复应用不得再改");
@@ -324,9 +333,46 @@ test("web 身份句：rc.5 的掉包落点由窗口锚点认出，重复应用�
   assert.ok(second.text.includes("[dsh-purge] web surface identity sentence dropped"), "要留下自己的标记");
   assert.equal(countOf(second.text, "You are interacting with the user through"), 1, "当前提示词的身份句删掉，冻结的 legacy 前缀必须还在");
   assert.equal(countOf(second.text, "Do not start a replacement server"), 1, "禁止另开服务器那句只在当前提示词里删，legacy 那份必须还在");
+  assert.equal(countOf(second.text, "DeepSeek Harness Web GUI"), 1, "产品名只剩 LEGACY_WEB_SURFACE 前缀里那一处");
   assert.equal(legacyBlock(second.text), legacyBefore, "LEGACY_WEB_SURFACE 一个字节都不许动");
   assert.equal(patchEffectState(second.text, prohibition), "applied");
   assert.equal(applyReplacementsToText(second.text, prohibition, "index.js").changed, false, "重复应用不得再删");
+  // 两条补丁的顺序表里 #32 在前；但 #53 的锚点钉的是宿主声明行，不依赖 #32 先跑。
+  // 两者都跑完时 #32 改名的那句已被 #53 整句删掉，它自己的标记还在行尾 —— 这是「更强的目标态」，
+  // 不是假成功：最终文件里产品名一处不剩，两条补丁各自的标记各记各的一步。
+  const soloProhibition = applyReplacementsToText(RC5_DEV_CONTEXT, prohibition, "index.js");
+  assert.equal(soloProhibition.changed, true, "#53 单独应用也必须命中（不存在隐式的先后约定）");
+  assert.equal(countOf(soloProhibition.text, "Do not start a replacement server"), 1);
+  assert.equal(patchEffectState(second.text, identity), "applied", "跑完两步后 #32 的标记仍在（它记录的是「改写跑过」）");
+});
+
+test("窗口有界：宿主把句尾改写/换引号时宁可失配，也不吃掉正文（#21）", () => {
+  const identity = patchOf(32);
+  const prohibition = patchOf(53);
+
+  // ① 句尾被拉长：#53 的右界钉住下一句开头，只删到 "…reflects it. " 为止，正文一句不少。
+  const stretched = RC5_DEV_CONTEXT.replace(
+    "whose URL the runtime context names.",
+    "whose URL the runtime context names, and the browser reflects it.",
+  );
+  const stretchedOut = applyReplacementsToText(stretched, prohibition, "index.js");
+  assert.equal(stretchedOut.changed, true, "长一点的同一句仍然认得出");
+  assert.equal(countOf(stretchedOut.text, "When the user refers to"), 2, "正文两句都还在（当前提示词 + legacy）");
+  assert.equal(countOf(stretchedOut.text, "You are interacting with the user through"), 1, "整句 delete 的只有身份句");
+
+  // ② 句号被吃掉（宿主把两句连写）：右界对不上 → 宁可失配，也不把正文一起删掉。
+  const noPeriod = RC5_DEV_CONTEXT.replace("names. When", "names When");
+  const noPeriodOut = applyReplacementsToText(noPeriod, prohibition, "index.js");
+  assert.equal(countOf(noPeriodOut.text, "When the user refers to"), 2, "正文不许被窗口吃掉");
+
+  // ③ 上下文行换成普通字符串（没有反引号边界）：#32 两条锚点都失配，而不是跨语句吞掉 checkout 那行。
+  const plainStrings = RC5_DEV_CONTEXT
+    .replace("text: `Current DeepSeek Harness implementation checkout: ${JSON.stringify(SOURCE_ROOT)}.`", "text: \"Current DeepSeek Harness implementation checkout: \" + JSON.stringify(SOURCE_ROOT)")
+    .replace("text: () => `Current DeepSeek Harness Web GUI URL: ${JSON.stringify(ctx.webApp.getAdvertisedUrl())}.`", "text: () => \"Current DeepSeek Harness Web GUI URL: \" + JSON.stringify(ctx.webApp.getAdvertisedUrl())");
+  assert.notEqual(plainStrings, RC5_DEV_CONTEXT, "fixture 必须真的换成了普通字符串");
+  const plainOut = applyReplacementsToText(plainStrings, identity, "index.js");
+  assert.equal(plainOut.text.includes("Current DeepSeek Harness implementation checkout"), true, "checkout 那行不许被吃掉");
+  assert.equal(plainOut.text.includes("Current DeepSeek Harness Web GUI URL"), true, "普通字符串形态认不出就保持原样（失配进漂移，不是改错）");
 });
 
 test("故障对照：把锚点改回旧 web-app-lib 写法，这一组必须红（#21）", () => {
@@ -378,7 +424,7 @@ test("目标定位：dev-context 键覆盖桌面布局、npm 嵌套与源码仓�
     const flat = path.join(flatBase, "dsh-harness-dev-context", "lib", "index.js");
     fs.mkdirSync(path.dirname(flat), { recursive: true });
     fs.writeFileSync(flat, "// flat\n", "utf8");
-    assert.equal(targetFiles(flatBase)["dev-context"], flat, "桌面布局要解析到包内的 lib/index.js");
+    assert.equal(targetFiles(flatBase, path.join(flatRoot, "home"))["dev-context"], flat, "桌面布局要解析到包内的 lib/index.js");
 
     // npm 嵌套布局：<aiBase>/dsh/node_modules/@deepseek-ai/dsh-harness-dev-context/lib/index.js
     const nestedRoot = tempDir("dev-context-nested-");
@@ -390,7 +436,7 @@ test("目标定位：dev-context 键覆盖桌面布局、npm 嵌套与源码仓�
     const nestedPrompt = path.join(nestedBase, "dsh", "node_modules", "@deepseek-ai", "dsh-system-prompt", "lib", "index.js");
     fs.mkdirSync(path.dirname(nestedPrompt), { recursive: true });
     fs.writeFileSync(nestedPrompt, "// nested prompt\n", "utf8");
-    const nestedFiles = targetFiles(nestedBase);
+    const nestedFiles = targetFiles(nestedBase, path.join(nestedRoot, "home"));
     assert.equal(nestedFiles["dev-context"], nested, "npm 嵌套布局要落回 dsh/node_modules 里的副本");
     assert.equal(nestedFiles["system-prompt-nested"], nestedPrompt, "备用布局键在这里本来就该出现，不许被键集合比对判成「解析器多出」");
 
@@ -402,7 +448,7 @@ test("目标定位：dev-context 键覆盖桌面布局、npm 嵌套与源码仓�
     const source = path.join(sourceRoot, "packages", "context", "harness-dev-context", "lib", "index.js");
     fs.mkdirSync(path.dirname(source), { recursive: true });
     fs.writeFileSync(source, "// source\n", "utf8");
-    assert.equal(targetFiles(sourceBase)["dev-context"], source, "源码仓库布局由 dsh-base 反推根目录");
+    assert.equal(targetFiles(sourceBase, path.join(sourceRoot, "home"))["dev-context"], source, "源码仓库布局由 dsh-base 反推根目录");
   } finally {
     for (const dir of dirs) fs.rmSync(dir, { recursive: true, force: true });
   }
