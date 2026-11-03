@@ -113,10 +113,11 @@
   ],
   "embeddedPrompt": {
     "source": "lib/asset-table.js → SLOT_ROWS + MASK/TAG/IV（aes-256-gcm + deflate）",
-    "chars": 21194,
+    "chars": 21193,
     "lines": 226,
     "originalSha256": "1757f1774457b448323ba036ec177c3c638d2a6dc97c9aa8ca2a1cc3e07528bc",
-    "currentSha256": "8a982fb3afdabe7a596654f3c3ed2ad5c57fe26ae0481570705750b416b4795e",
-    "differences": "仅 2 行：第 5 行 PRIME DIRECTIVE 与第 12 行 Core Motivation 的 YG → 一航（用户自己的改名，rename-yg-2026-11-02T07-02-38 备份可对照）；其余 224 行与 1.1.71 原版逐字节一致。"
+    "currentSha256": "5380a0c6f53c434b1492ae44643214257afed53e7f4a364caefb2cb93f768896",
+    "differences": "与原版 3 处差异：①第 5 行 PRIME DIRECTIVE、②第 12 行 Core Motivation 的 YG → 一航（用户自己的改名，rename-yg-2026-11-02T07-02-38 备份可对照）；③第 114 行拼写修正 aircreack → aircrack（2026-11-03 按用户要求修正，上游 1.1.88 也是同一处修正）。因此比原版少 1 个字符（21 194 → 21 193），其余 223 行逐字节一致。",
+    "note": "改动此文件后必须同步 currentSha256 与 chars，否则 tests/archive 会红。"
   }
 }
