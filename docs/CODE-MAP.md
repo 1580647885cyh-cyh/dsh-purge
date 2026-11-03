@@ -34,6 +34,7 @@
 - 钩子：`git config core.hooksPath .githooks` 启用；跳过单次用 `DSH_PURGE_SKIP_HOOKS=1`；钩子跑 `npm run test:ci`（全量测试 + `--test-force-exit` + 单例超时），新增测试文件不用改钩子
 - 审查标准：`CODING_STANDARDS.md`（审查代理读；实现代理不需要）
 - 架构审查候选与顺序：`docs/architecture-review-2026-11-03.md`（13 条深化机会、证据行号、强度与先后；起手新候选前先读它）
+- **DSH 适配清单**：`docs/dsh-adaptation-backlog.md`（8 条要做的、4 条不需要、能力面红线、顺序与验收；动手前先读它和 ADR-0002）
 
 ## 常见改动从哪里开始
 
