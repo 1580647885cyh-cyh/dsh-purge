@@ -48,7 +48,7 @@
   - helper：`openBrowser:false` 写 pid/port/state，不冒充 listening；
   - 杀不掉：伪造 `taskkill.exe` 失败 → 进程仍在、记录保留、sidecar exit 0。
 - `npm run check`：通过。
-- `npm run verify`：通过，报告 `D:\dsh\tmp\dsh-purge-verify\20261103-233605\out\report.md`；入口五不回退。
+- `npm run verify`：通过，报告 `D:\dsh\tmp\dsh-purge-verify\20261103-234158\out\report.md`；入口五不回退。
 
 ## 边界（不冒充真机）
 
