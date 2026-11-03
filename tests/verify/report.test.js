@@ -50,6 +50,15 @@ const targetsRecord = (ok) => ({
   runtime: {
     completePrompt: { ok, error: ok ? "" : "注入段丢失", detail: {} },
     shell: { ok, error: "", cases: [{ id: "clean-exit", ok }] },
+    // A5（#25）：桌面退出留痕的证明（三路 + 上界 + 读侧 + 两条拔痕对照）。
+    exitTrace: {
+      ok,
+      error: "",
+      latest: ok ? { at: "2026-11-03T11:20:12.698Z", code: 0, signal: null, source: "close" } : null,
+      statusLine: ok ? "· 最近一次桌面退出 / desktop exit: code=0 · signal=无 · 2026-11-03T11:20:12.698Z · 来源=close" : "",
+      bound: { maxEntries: 20, maxBytes: 8192 },
+      cases: ok ? [{ id: "read-side", ok: true, detail: "status 行命中" }] : [{ id: "control-trace-removed", ok: false, detail: "拔掉后仍有记录" }],
+    },
   },
   liveHost: { ok: true, checked: 55, changed: [] },
 });
@@ -133,7 +142,7 @@ test("knownFailures 把假成功、状态超前与运行结果失败报成 #6 �
         ahead: [{ id: 84, name: "DESKTOP_HOST_CLOSE_CODE0_NO_FAIL", status: "applied" }],
       },
       isolated: { diffs: { reapply: 2 } },
-      runtime: { completePrompt: { ok: false, error: "注入段丢失" } },
+      runtime: { completePrompt: { ok: false, error: "注入段丢失" }, exitTrace: { ok: false, error: "留痕没写" } },
       liveHost: { ok: false, changed: ["main.js"] },
     },
   });
@@ -142,6 +151,7 @@ test("knownFailures 把假成功、状态超前与运行结果失败报成 #6 �
   assert.ok(ids.includes("target-status-ahead-84"));
   assert.ok(ids.includes("target-reapply-not-idempotent"));
   assert.ok(ids.includes("target-runtime-completePrompt"));
+  assert.ok(ids.includes("target-runtime-exitTrace"));
   assert.ok(ids.includes("target-live-host-write"));
   assert.ok(failures.every((failure) => failure.owner === "#6"));
 });
@@ -181,6 +191,9 @@ test("renderReportMarkdown 输出边界、入口、模板契约与提示词预�
   assert.match(markdown, /漂移 #8/);
   assert.match(markdown, /official anchor line/);
   assert.match(markdown, /桌面壳 close 回调：/);
+  assert.match(markdown, /桌面退出留痕：close 三路/);
+  // 这一行原样来自 purge_status（报告不重算格式，也不在读取失败时自己拼一行）。
+  assert.match(markdown, /· 最近一次桌面退出 \/ desktop exit: code=0 · signal=无 · 2026-11-03T11:20:12\.698Z · 来源=close/);
   assert.equal(markdown.includes("cwd-template-variable"), false);
   assert.equal(markdown.includes("PRIME DIRECTIVE"), false);
 });

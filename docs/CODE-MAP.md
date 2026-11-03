@@ -16,6 +16,7 @@
 - 桌面发行形态名单：`lib/desktop-forms.js`（harness / desktop / next；①形态 ②是否解 asar ③壳入口 各读各的字段）
 - 宿主版本与适配状态：`lib/host-version.js`（`parseHostVersion` / `hostTargets` / `hostAdaptation` / `readHostVersion`；A1 / #18，只报告不阻断）
 - 更新锁：`lib/local-version-lock.js`、`lib/update.js`
+- 桌面退出留痕（A5 / #25）：`lib/exit-ledger.js`（`<DSH_HOME>/dsh-purge/exit-ledger.jsonl` 的读写契约与描述；写入方在宿主 close 回调里是内联副本，补丁 #90）
 - RedTeam：`lib/redteam/index.js`、`lib/redteam/tools.js`、`presets/redteam/`
 - 预设迁移：`lib/redteam/preset-migration.js`（toolFilter → agentPreset 的文本迁移、子级预设组合裁剪）
 
@@ -25,6 +26,7 @@
 - 目标定位与适配状态（#6）：`lib/verify/targets.js`（逐文件目标态判定）、`lib/verify/target-entry.js`（入口五：定位、应用、运行结果证明）
 - 备份/恢复故障注入（#7）：`lib/verify/backup-faults.js`（完整备份 / 过期备份 / 0 字节备份），由入口三调用
 - NEXT 安装树 fixture 与入口五四事实（#24）：`lib/verify/desktop-next.js`
+- 桌面退出留痕 harness（#25）：`lib/verify/exit-trace.js`（close 回调作用域注入 + 拔痕对照 + purge_status 读侧）
 - 参数解析（#13）：`lib/verify/cli-args.js`（`scripts/verify.mjs` 的参数契约，含 `--keep` / `--no-prune`）
 - 验收入口参数（#22 复盘）：`lib/verify/acceptance-args.js`（`scripts/acceptance.mjs` 的 `--out` / `--name` / `--stamp`；
   位置参数 = npm 吞掉旗标后留下的值，当用法错误处理）

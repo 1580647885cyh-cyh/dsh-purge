@@ -72,8 +72,14 @@ fixture 在入口五逐项落报告（`targets.desktop`）。「不解包」= �
 
 ### A5 · 桌面静默退出的退出码留痕
 
+**状态：close 一路已落地（#25）**。补丁 #90 在 close 回调里旁听 code/signal，写一条有上界的记录到
+`<DSH_HOME>/dsh-purge/exit-ledger.jsonl`；`purge_status` 与验证报告都能读到「最近一次桌面退出」。
+**只旁听**：不改退出行为、不改 exit code、不写官方更新 journal。
+其余生命周期（before-quit / will-quit / quit(exitCode) / 渲染进程崩溃 / 信号 / 未捕获异常）**尚未落**——
+它们要么没复现过缺陷，要么需要新的补丁锚点；按判定规则，先复现再动。
+
 - **宿主侧**：dir 模式静默退出时，只有 host 的 close 回调知道真实退出码（上游 `c63ba4a`，#207）。
-- **我们现状**：没有退出码留痕。
+- **我们现状（A5 前）**：#83/#84 把两个分支都改成静默 `resolve()`，code/signal 读完就丢。
 - **要做**：挂生命周期日志（before-quit / will-quit / quit(exitCode) / 渲染进程崩溃 / 信号 /
   未捕获异常）。**只 monitor，不挂 uncaughtException 本体**（会把崩溃吞成继续跑）。
 

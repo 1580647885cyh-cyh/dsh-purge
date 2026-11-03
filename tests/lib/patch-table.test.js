@@ -28,9 +28,9 @@ test("键注册表：65 个解析键 + 4 个备用布局键，互不重叠", () 
   assert.equal(isKnownFileKey("not-a-real-key"), false);
 });
 
-test("82 条补丁全部可构造，且每个 file 键都能解析到已知键", () => {
-  assert.equal(ALL_PATCHES.length, 82);
-  assert.equal(assertPatchTable(ALL_PATCHES), 82);
+test("83 条补丁全部可构造，且每个 file 键都能解析到已知键", () => {
+  assert.equal(ALL_PATCHES.length, 83);
+  assert.equal(assertPatchTable(ALL_PATCHES), 83);
   const { hard, soft } = patchTableProblems(ALL_PATCHES);
   assert.deepEqual(hard, [], "硬问题必须为 0");
   assert.deepEqual(soft, [], "软问题（缺改写写法 / 缺完成标记 / 缺 name+layer）必须为 0");

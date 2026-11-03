@@ -227,6 +227,29 @@ test("接线：必需补丁缺原文仍走硬词，普通补丁才是 drifted", 
   }
 });
 
+test("接线：桌面退出留痕必须接在生产路径上（拔掉任何一处都要红）", () => {
+  // 写：补丁表里的留痕片段落在 close 回调上（#90），且排在 #83/#84 之后应用。
+  const patches = core.ALL_PATCHES;
+  const indexOf = (id) => patches.findIndex((item) => item.id === id);
+  assert.ok(indexOf(90) > indexOf(83) && indexOf(90) > indexOf(84), "#90 必须排在整块改写 close 回调的 #83/#84 之后");
+  // 读：gatherState 必须真的去读留痕文件，renderStatus 必须真的把它写出来。
+  const gather = executableBody(coreSrc);
+  assert.match(gather, /desktop_exit: readLatestDesktopExit/, "gatherState 必须带出最近一次桌面退出");
+  assert.ok(gather.includes("readLatestDesktopExit({ home: dshHome })"), "读侧必须读隔离 DSH_HOME 那一份留痕");
+  const indexSrc = readFileSync(path.join(repoRoot, "lib", "index.js"), "utf8");
+  assert.match(indexSrc, /describeDesktopExit\(state\.desktop_exit\)/, "purge_status 必须渲染最近一次桌面退出");
+  // 证明：入口五必须跑 harness，且拔痕对照必须拔的是 close 回调里那一段。
+  const targetSrc = readFileSync(path.join(repoRoot, "lib", "verify", "target-entry.js"), "utf8");
+  assert.match(targetSrc, /proveExitTrace\(\{/, "入口五必须调用留痕证明");
+  const okBlocks = [...targetSrc.matchAll(/record\.ok = Boolean\(([\s\S]*?)\);/g)];
+  const entryOk = okBlocks.find((item) => item[1].includes("runtime.completePrompt.ok"));
+  assert.ok(entryOk, "入口五的 record.ok 计算必须还在");
+  assert.match(entryOk[1], /runtime\.exitTrace\.ok/, "留痕证明失败必须让入口五变红");
+  const exitSrc = readFileSync(path.join(repoRoot, "lib", "verify", "exit-trace.js"), "utf8");
+  const strip = /const stripped = stripExitTrace\(body\);/.exec(exitSrc);
+  assert.ok(strip, "对照必须从 close 回调体里摘掉生产路径上的那一段，而不是直调写入器");
+});
+
 test("接线：core 的 apply/status 依赖的模型函数确实可调用", () => {
   for (const name of ["asLf", "isYamlPath", "filePatchSettled", "filePatchOutcome", "patchHasRemainingWork", "rollupPatchStatus", "resultSoftOk", "readyStatus", "observe", "missingAnchors", "isSelfMarkedPatch"]) {
     assert.equal(typeof model[name], "function", "patch-model 应该导出 " + name);

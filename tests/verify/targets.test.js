@@ -4,7 +4,8 @@ import path from "node:path";
 import test from "node:test";
 import { ALL_PATCHES, applyReplacementsToText, isLayoutSoftPatch, isSelfMarkedPatch, missingAnchors, patchEffectState, presetToolWebFetchEnabled, targetFiles } from "../../lib/core.js";
 import { auditTargetStatus, fixtureKeyGaps, inspectPatchTargets, searchedPathsFor } from "../../lib/verify/targets.js";
-import { extractCloseHandler, runCloseHandler } from "../../lib/verify/target-entry.js";
+import { extractCloseHandler, runCloseHandler } from "../../lib/verify/exit-trace.js";
+import { LEGACY_CLOSE, RC5_CLOSE } from "./desktop-close-fixture.js";
 import { tempDir } from "./helpers.js";
 import { HOST_TEXT_FIXTURES } from "./host-text-fixtures.js";
 
@@ -15,6 +16,7 @@ import { HOST_TEXT_FIXTURES } from "./host-text-fixtures.js";
  * 补丁必须认出它、改出来的结果必须与基线同义，并且重复应用不再追加内容。
  */
 
+
 const TAB = String.fromCharCode(9);
 const pad = (n) => TAB.repeat(n);
 
@@ -23,27 +25,6 @@ function patchOf(id) {
   assert.ok(patch, "找不到补丁 #" + id);
   return patch;
 }
-
-/** 0.2.1-rc.5 的 close 回调：不收 signal，把 null 并进同一个 if。 */
-const RC5_CLOSE = [
-  pad(2) + 'child.once("close", (code) => {',
-  pad(3) + 'const suffix = this.stderr.trim() === "" ? "" : `: ${this.stderr.trim()}`;',
-  pad(4) + "if (code !== 0 && code !== null) this.fail(/* @__PURE__ */ new Error(`dsh desktop host exited with ${String(code)}${suffix}`));",
-  pad(4) + "else this.fail(/* @__PURE__ */ new Error(`dsh desktop host stopped${suffix}`));",
-  pad(4) + "resolve();",
-  pad(2) + "});",
-].join("\n");
-
-/** 旧形态（0.1.x）：close 回调收 signal，先单独处理 null/signal。 */
-const LEGACY_CLOSE = [
-  pad(2) + 'child.once("close", (code, signal) => {',
-  pad(3) + 'const suffix = this.stderr.trim() === "" ? "" : `: ${this.stderr.trim()}`;',
-  pad(4) + "if (code === null || signal) { resolve(); return; }",
-  pad(4) + "if (code !== 0) this.fail(/* @__PURE__ */ new Error(`dsh desktop host exited with ${String(code)}${suffix}`));",
-  pad(4) + "else this.fail(/* @__PURE__ */ new Error(`dsh desktop host stopped${suffix}`));",
-  pad(4) + "resolve();",
-  pad(2) + "});",
-].join("\n");
 
 /** 0.2.1-rc.5 的 assemble：complete 分支前多了 requiredContexts 过滤。 */
 const RC5_ASSEMBLE = [
@@ -85,6 +66,32 @@ test("桌面壳 close 回调：旧形态仍然按基线处理（对照案例不�
   assert.ok(!applied.text.includes("dsh desktop host stopped"));
   const body = extractCloseHandler(applied.text);
   assert.equal(runCloseHandler(body, 0).failed.length, 0);
+});
+
+test("桌面退出留痕：未打补丁的 close 回调报 pending，应用后落一条留痕调用且不叠加", () => {
+  const patch = patchOf(90);
+  assert.equal(patchEffectState(RC5_CLOSE, patch), "pending", "宿主原文还在时必须报 pending，不能一上来就 drifted");
+
+  const applied = applyReplacementsToText(RC5_CLOSE, patch, "main.js");
+  assert.equal(applied.changed, true, "rc.5 的 close 回调必须被认出");
+  const text = applied.text;
+  assert.ok(text.includes("[dsh-purge] desktop exit trace"), "要留下我们的标记");
+  assert.ok(text.includes("exit-ledger.jsonl"), "落点必须是 DSH_HOME/dsh-purge 下的留痕文件");
+  assert.ok(text.includes('source: "close"'), "来源词要写死在记录里");
+  assert.equal(patchEffectState(text, patch), "applied");
+  assert.equal(applyReplacementsToText(text, patch, "main.js").changed, false, "重复应用不得叠加第二份留痕");
+
+  // 留痕必须在两条早退/失败分支之前：signal 分支 return 掉之后就没有下一句了。
+  const traceAt = text.indexOf("[dsh-purge] desktop exit trace");
+  const failAt = text.indexOf("this.fail(");
+  const signalAt = text.indexOf("if (code === null || signal)");
+  assert.ok(traceAt > 0 && failAt > traceAt, "留痕必须落在 fail 之前");
+  assert.ok(signalAt < 0 || signalAt > traceAt, "留痕必须落在 signal 早退之前");
+
+  // 旧形态（收 signal 的 0.1.x close 回调）同样能落留痕。
+  const legacy = applyReplacementsToText(LEGACY_CLOSE, patch, "main.js");
+  assert.equal(legacy.changed, true, "旧形态也要能落留痕");
+  assert.ok(legacy.text.indexOf("[dsh-purge] desktop exit trace") < legacy.text.indexOf("if (code === null || signal)"));
 });
 
 test("完整提示词：rc.5 分支被认出，且 required 上下文过滤不被替换掉", () => {
