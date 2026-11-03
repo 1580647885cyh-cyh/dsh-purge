@@ -16,7 +16,7 @@
 
 | 内容 | rc.5 落点 | 备注 |
 | --- | --- | --- |
-| web 面身份句 + `Do not start a replacement server` | `dsh-harness-dev-context/lib/index.js` | `WEB_SURFACE_PROMPT` 整段，以及 `prefix` / `suffix` 拆开的两半；`dsh-web-app/lib/index.js`（181 行）已不含这些句子 |
+| web 面身份句 + `Do not start a replacement server` | `dsh-harness-dev-context/lib/index.js` | 键 `dev-context`（#21）；`WEB_SURFACE_PROMPT` 整段，以及 `prefix` / `suffix` 拆开的两半；`LEGACY_WEB_SURFACE` 是**冻结**的旧文案（宿主拿它匹配老会话已记录的段落），任何补丁都不许动；`dsh-web-app/lib/index.js`（181 行）已不含这些句子，只剩 `DSH_WEB_URL` 的描述 |
 | 系统提示词装配 / complete 分支 | `dsh-system-prompt/lib/index.js` | 键 `system-prompt` |
 | 回滚 append / rewind | `dsh-client-ui-conversation/lib/client.js` | `append(record)`、宿主自带 `isRewindMarker` |
 | 审批句与 invariant | `dsh-user-approval/lib/index.js`、`lib/types/index.js`、`lib/invariant.js` | 键 `user-approval*` |

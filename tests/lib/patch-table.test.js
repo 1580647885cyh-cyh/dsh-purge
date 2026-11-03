@@ -17,10 +17,10 @@ import { ALL_PATCHES } from "../../lib/core.js";
  * 键名写错、id 撞车在过去会让 apply 静默变绿；现在加载即失败。
  */
 
-test("键注册表：64 个解析键 + 4 个备用布局键，互不重叠", () => {
-  assert.equal(TARGET_FILE_KEYS.length, 64);
+test("键注册表：65 个解析键 + 4 个备用布局键，互不重叠", () => {
+  assert.equal(TARGET_FILE_KEYS.length, 65);
   assert.equal(ALT_FILE_KEYS.length, 4);
-  assert.equal(new Set(TARGET_FILE_KEYS).size, 64, "注册表不许有重复键");
+  assert.equal(new Set(TARGET_FILE_KEYS).size, 65, "注册表不许有重复键");
   for (const key of ALT_FILE_KEYS) {
     assert.equal(TARGET_FILE_KEYS.includes(key), false, key + " 是备用键，不应出现在解析注册表里");
     assert.equal(isKnownFileKey(key), true);
@@ -75,7 +75,7 @@ test("故障对照：重复 id 与字段类型错误同样在构造期炸", () =
 });
 
 test("故障对照：targetFiles 键集合与注册表不一致必须报错（两个方向）", () => {
-  assert.equal(assertTargetKeys([...TARGET_FILE_KEYS]), 64);
+  assert.equal(assertTargetKeys([...TARGET_FILE_KEYS]), 65);
   assert.throws(() => assertTargetKeys([...TARGET_FILE_KEYS, "vendor-extra"]), (error) => {
     assert.equal(error.code, "ERR_DSH_PURGE_TARGET_KEYS");
     assert.match(error.message, /解析器多出：vendor-extra/);

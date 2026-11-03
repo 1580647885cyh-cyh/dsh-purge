@@ -11,7 +11,7 @@
 | `patterns` + `replace` | 7 | `rewrite` |
 | `marker` | 6 | `observe().ownMark` |
 | `markers` | 75 | `observe().ownMark` |
-| `markersAny` | 20 | `observe().ownMark`（标记聚合规则内化） |
+| `markersAny` | 18 | `observe().ownMark`（标记聚合规则内化） |
 | `forbid` | 5 | `observe().ownMark` |
 | `settledWhen` | 1 | `observe()` 的目标态判定 |
 | `skipIfMarked` | 34 | `rewrite` 的幂等不变量 |

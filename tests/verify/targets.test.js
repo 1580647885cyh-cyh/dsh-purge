@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
-import { ALL_PATCHES, applyReplacementsToText, isLayoutSoftPatch, isSelfMarkedPatch, missingAnchors, patchEffectState, presetToolWebFetchEnabled } from "../../lib/core.js";
+import { ALL_PATCHES, applyReplacementsToText, isLayoutSoftPatch, isSelfMarkedPatch, missingAnchors, patchEffectState, presetToolWebFetchEnabled, targetFiles } from "../../lib/core.js";
 import { auditTargetStatus, inspectPatchTargets, searchedPathsFor } from "../../lib/verify/targets.js";
 import { extractCloseHandler, runCloseHandler } from "../../lib/verify/target-entry.js";
 import { tempDir } from "./helpers.js";
@@ -264,5 +264,146 @@ test("适配状态：自标记型补丁找不到痕迹不算漂移（与 patchSt
     assert.deepEqual(inspected.drifted, [], "本来就没写过，不进漂移清单");
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+/**
+ * 0.2.1-rc.5 的 dsh-harness-dev-context/lib/index.js 骨架（#21）：身份句只在这里出现一次，
+ * LEGACY_WEB_SURFACE 里还有一份**冻结**的旧段落（宿主拿它匹配老会话已记录的提示词）。
+ * 三条上下文行用来钉住「窗口不许跨语句」：checkout 那句与身份句长得像，URL 描述那句才是落点。
+ */
+const RC5_DEV_CONTEXT = [
+  "const HARNESS_SOURCE_PROMPT = `The runtime context names the DeepSeek Harness implementation checkout.`;",
+  "const WEB_SURFACE_PROMPT = `You are interacting with the user through the DeepSeek Harness Web GUI whose URL the runtime context names. When the user refers to \"this page\" they mean this GUI. Do not start a replacement server unless the user asks; if one is needed, use a managed background job and verify its exact URL.`;",
+  "/** Frozen text around the value in each paragraph. */",
+  "const LEGACY_WEB_SURFACE = {",
+  '\tprefix: "You are interacting with the user through the DeepSeek Harness Web GUI at ",',
+  '\tsuffix: ". When the user refers to \\"this page\\" they mean this GUI. Do not start a replacement server unless the user asks; if one is needed, use a managed background job and verify its exact URL."',
+  "};",
+  "function apply(ctx) {",
+  "\tctx.systemPrompt.context({",
+  "\t\ttext: `Current DeepSeek Harness implementation checkout: ${JSON.stringify(SOURCE_ROOT)}.`",
+  "\t});",
+  "\tctx.systemPrompt.context({",
+  "\t\ttext: () => `Current DeepSeek Harness Web GUI URL: ${JSON.stringify(ctx.webApp.getAdvertisedUrl())}.`",
+  "\t});",
+  "}",
+].join("\n");
+
+/** LEGACY_WEB_SURFACE 那一段：宿主冻结的旧文案，任何补丁都不许动它。 */
+function legacyBlock(text) {
+  const start = text.indexOf("const LEGACY_WEB_SURFACE");
+  const end = text.indexOf("};", start);
+  return start < 0 || end < 0 ? "" : text.slice(start, end + 2);
+}
+
+function countOf(text, needle) {
+  return text.split(needle).length - 1;
+}
+
+test("web 身份句：rc.5 的掉包落点由窗口锚点认出，重复应用不再追加（#21）", () => {
+  const identity = patchOf(32);
+  const prohibition = patchOf(53);
+  assert.deepEqual(identity.file, ["dev-context"], "#32 必须改指 rc.5 的落点");
+  assert.deepEqual(prohibition.file, ["dev-context"], "#53 必须改指 rc.5 的落点");
+
+  const legacyBefore = legacyBlock(RC5_DEV_CONTEXT);
+  assert.ok(legacyBefore.length > 0, "fixture 必须带 LEGACY_WEB_SURFACE，否则「不许动它」无从证明");
+
+  const first = applyReplacementsToText(RC5_DEV_CONTEXT, identity, "index.js");
+  assert.equal(first.changed, true, "身份句必须被认出（旧的整句写法在 rc.5 一次都命中不了）");
+  assert.ok(first.text.includes("through the local Web GUI whose URL the runtime context names."), "产品名换成 local，句尾原样搬回");
+  assert.equal(first.text.includes("DeepSeek Harness Web GUI whose URL"), false, "产品名不许留在身份句里");
+  assert.ok(first.text.includes("[dsh-purge] web surface identity neutralized"), "要留下标记");
+  assert.ok(first.text.includes("Current local web GUI URL: "), "URL 描述那句同样去掉产品名");
+  assert.ok(first.text.includes("Current DeepSeek Harness implementation checkout"), "checkout 那句不是身份句，不许被顺手改掉");
+  assert.equal(patchEffectState(first.text, identity), "applied");
+  assert.equal(applyReplacementsToText(first.text, identity, "index.js").changed, false, "重复应用不得再改");
+
+  const second = applyReplacementsToText(first.text, prohibition, "index.js");
+  assert.equal(second.changed, true, "#53 要在 #32 之后仍然认得出这两句");
+  assert.ok(second.text.includes("[dsh-purge] web surface identity sentence dropped"), "要留下自己的标记");
+  assert.equal(countOf(second.text, "You are interacting with the user through"), 1, "当前提示词的身份句删掉，冻结的 legacy 前缀必须还在");
+  assert.equal(countOf(second.text, "Do not start a replacement server"), 1, "禁止另开服务器那句只在当前提示词里删，legacy 那份必须还在");
+  assert.equal(legacyBlock(second.text), legacyBefore, "LEGACY_WEB_SURFACE 一个字节都不许动");
+  assert.equal(patchEffectState(second.text, prohibition), "applied");
+  assert.equal(applyReplacementsToText(second.text, prohibition, "index.js").changed, false, "重复应用不得再删");
+});
+
+test("故障对照：把锚点改回旧 web-app-lib 写法，这一组必须红（#21）", () => {
+  // 旧 #32：整句写死 + 指向 web-app-lib。rc.5 里那句早就不长这样了。
+  const oldIdentity = {
+    ...patchOf(32),
+    file: ["web-app-lib"],
+    replacements: [
+      {
+        pattern: "You are interacting with the user through the DeepSeek Harness Web GUI at ${webUrl}.",
+        replace: "You are interacting with the user through the local web GUI at ${webUrl}.",
+      },
+      {
+        pattern: 'description: "Canonical local URL of the DeepSeek Harness Web GUI serving this session."',
+        replace: 'description: "Canonical local URL of the web GUI serving this session." /* [dsh-purge] web surface identity neutralized */',
+      },
+    ],
+    markersAny: true,
+    markers: ["[dsh-purge] web surface identity neutralized", "through the local web GUI at ${webUrl}."],
+  };
+  assert.deepEqual(oldIdentity.file, ["web-app-lib"]);
+  assert.equal(applyReplacementsToText(RC5_DEV_CONTEXT, oldIdentity, "index.js").changed, false, "旧整句锚点在 rc.5 命中不了——这就是 #21 的故障现象");
+  assert.equal(patchEffectState(RC5_DEV_CONTEXT, oldIdentity, "index.js"), "unmatched");
+
+  // 旧 #53 的第二句仍然字面存在，但它不认边界：会把 LEGACY 里冻结的那份一起删掉。
+  const oldProhibition = {
+    ...patchOf(53),
+    file: ["web-app-lib"],
+    replacements: [
+      { pattern: "You are interacting with the user through the local web GUI at ${webUrl}.", replace: "Local web GUI: ${webUrl}. // [dsh-purge] web surface identity neutralized" },
+      { pattern: "Do not start a replacement server unless the user asks; if one is needed, use a managed background job and verify its exact URL.", replace: "" },
+    ],
+    markersAny: true,
+    markers: ["[dsh-purge] web surface identity neutralized", "Local web GUI: ${webUrl}."],
+  };
+  const legacyBefore = legacyBlock(RC5_DEV_CONTEXT);
+  const changed = applyReplacementsToText(RC5_DEV_CONTEXT, oldProhibition, "index.js");
+  assert.equal(changed.changed, true, "旧字面锚点仍然命中——所以它必须被故障对照钉住");
+  assert.notEqual(legacyBlock(changed.text), legacyBefore, "旧锚点把 LEGACY 里冻结的那份也删了：这正是要窗口里排除边界的原因");
+});
+
+test("目标定位：dev-context 键覆盖桌面布局、npm 嵌套与源码仓库（#21）", () => {
+  const dirs = [];
+  try {
+    // 桌面布局：<aiBase>/dsh-harness-dev-context/lib/index.js
+    const flatRoot = tempDir("dev-context-flat-");
+    dirs.push(flatRoot);
+    const flatBase = path.join(flatRoot, "node_modules", "@deepseek-ai");
+    const flat = path.join(flatBase, "dsh-harness-dev-context", "lib", "index.js");
+    fs.mkdirSync(path.dirname(flat), { recursive: true });
+    fs.writeFileSync(flat, "// flat\n", "utf8");
+    assert.equal(targetFiles(flatBase)["dev-context"], flat, "桌面布局要解析到包内的 lib/index.js");
+
+    // npm 嵌套布局：<aiBase>/dsh/node_modules/@deepseek-ai/dsh-harness-dev-context/lib/index.js
+    const nestedRoot = tempDir("dev-context-nested-");
+    dirs.push(nestedRoot);
+    const nestedBase = path.join(nestedRoot, "node_modules", "@deepseek-ai");
+    const nested = path.join(nestedBase, "dsh", "node_modules", "@deepseek-ai", "dsh-harness-dev-context", "lib", "index.js");
+    fs.mkdirSync(path.dirname(nested), { recursive: true });
+    fs.writeFileSync(nested, "// nested\n", "utf8");
+    const nestedPrompt = path.join(nestedBase, "dsh", "node_modules", "@deepseek-ai", "dsh-system-prompt", "lib", "index.js");
+    fs.mkdirSync(path.dirname(nestedPrompt), { recursive: true });
+    fs.writeFileSync(nestedPrompt, "// nested prompt\n", "utf8");
+    const nestedFiles = targetFiles(nestedBase);
+    assert.equal(nestedFiles["dev-context"], nested, "npm 嵌套布局要落回 dsh/node_modules 里的副本");
+    assert.equal(nestedFiles["system-prompt-nested"], nestedPrompt, "备用布局键在这里本来就该出现，不许被键集合比对判成「解析器多出」");
+
+    // 源码仓库布局：<root>/packages/context/harness-dev-context/lib/index.js
+    const sourceRoot = tempDir("dev-context-source-");
+    dirs.push(sourceRoot);
+    const sourceBase = path.join(sourceRoot, "node_modules", "@deepseek-ai");
+    fs.mkdirSync(path.join(sourceBase, "dsh-base"), { recursive: true });
+    const source = path.join(sourceRoot, "packages", "context", "harness-dev-context", "lib", "index.js");
+    fs.mkdirSync(path.dirname(source), { recursive: true });
+    fs.writeFileSync(source, "// source\n", "utf8");
+    assert.equal(targetFiles(sourceBase)["dev-context"], source, "源码仓库布局由 dsh-base 反推根目录");
+  } finally {
+    for (const dir of dirs) fs.rmSync(dir, { recursive: true, force: true });
   }
 });
