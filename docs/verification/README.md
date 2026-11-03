@@ -10,6 +10,7 @@
 | --- | --- | --- |
 | 改补丁/适配行为，要全量取证 | npm run verify | 入口一到五（报告在 out/report.md） |
 | 临时探查、跑一次性脚本、调 lib/core.js | npm run probe <file> | 隔离边界 + 文件索引（用法见 scripts/probe.mjs 头注释） |
+| **verify 红了、而且只红在某一段**（某入口 / 某段模型调用） | 先用 `npm run probe <file>` 复现那一段，不要连跑整轮 verify | 同一节。整轮一轮 ~70 s，探针 ~10 s；2026-11-03 用一个 20 行探针两分钟定位了"反向案例 0 请求"的竞态，之前已经空跑了 4 轮整轮 |
 | 交付/升级后的整体验收与兼容记录 | npm run acceptance | 入口六（产物在 docs/compatibility/） |
 | 提交前机械检查 | npm run check / npm test | 钩子与测试 |
 
@@ -47,6 +48,7 @@ node scripts/verify.mjs --json # 输出机器可读报告
 8. `app.asar` 是未打补丁的解出源，`resources/app` 是当前运行中的已打补丁副本：判断「官方原文」看 asar，判断「现在生效什么」看 `resources/app`。
 9. 隔离环境清空 PATH 后，桌面 exe 发现不会回落到真实安装，所以 `desktop-shell` 只在真实安装的只读定位里出现；隔离副本里的桌面壳用 asar 解出的 `lib/main.js` 单独证明。
 10. 任何要走 `apply*` 的临时脚本必须用 `npm run probe <file>`：它切隔离环境、预检宿主范围，并在操作前后核对真实安装目标文件的 stat。
+    **探针里 `import` 本地绝对路径必须写成 `file:///D:/…`**：Windows 下 Node 会报 `ERR_UNSUPPORTED_ESM_URL_SCHEME`，白丢一轮。
 11. #11 的 fixture 缓存在工作区**旁边**（`tmp/dsh-purge-verify/_fixture-cache/<key>`），不是工作区的一部分：不进保护基线
     （基线只走仓库源码）、不进工作区快照（副本仍落在 `<stamp>/desktop`）、也不参与真实安装守卫（守卫只核对真实安装的
     targetFiles）。缓存按「先写临时目录、再换名」落盘，半成品永远不会被当成命中。
@@ -324,6 +326,12 @@ DSH_HOME 里的已安装副本仍是旧写法时，报告只在「待自愈」�
 - 对照布局回归：同一解析器在 DSH_HOME/node_modules、~/.dsh 同构目录、npm 嵌套布局（@deepseek-ai/dsh/node_modules）、argv bin 布局与 resourcesPath/execPath 桌面锚点都有用例。这里只验证解析候选与身份核对，不构成 Web 端验收承诺（ADR 0001）。
 - 随 fd 修复暴露的必要路径缺陷：refreshStaleBaksForUpgrade 原先只看 dsh-purge 字面标记；agent-instructions 这类补丁把官方句子换成强句、不带该字串，备份真正落地后重复 apply 会把有效 bak 覆盖成已打补丁内容，revert 再也还原不回去。现按目标补丁的 marker/替换文本判断“文件已被我们打过”，实现与回归见 lib/core.js、hostfs.test.js，报告里的 reapply=0 / revert 还原 5 个是验收证据。
 - 不动工具 Schema/工具集合/预设：本票只加解析模块、fd 代理与验证入口字段。
+
+## CI 不是集成门（2026-11-03 记录）
+
+`.github/workflows/check.yml` 跑 `npm run check` + `npm run test:ci`，但跑在 `windows-latest` 上、没有装桌面宿主：
+真宿主电池（`tests/verify/host-admin.test.js`）会因 `hasHost()` 为假而 **skip**。所以 **CI 绿 = 语法 + 单元 + 非宿主路径**，
+集成结论只能来自本机 `npm run verify`。任何"CI 过了所以集成没问题"的推断都是错的。
 
 ## 测试超时的口径（2026-11-03 实测）
 

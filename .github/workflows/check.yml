@@ -18,5 +18,5 @@ jobs:
           node-version: 24
       - name: Syntax and entry imports
         run: npm run check
-      - name: Tests
-        run: npm test
+      - name: Tests (与 pre-commit 同一条命令)
+        run: npm run test:ci

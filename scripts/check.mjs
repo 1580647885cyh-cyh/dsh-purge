@@ -123,6 +123,20 @@ for (const [rel, text] of sources) {
   ownTempDirs.push({ rel, line: 1, text: definesTempDir ? "自己定义 tempDir()" : "直接 mkdtempSync()" });
 }
 
+
+// —— 试过、并放弃：文本级"跨模块接线"检查（2026-11-03 复盘）——
+// 目标：抓住"调用了兄弟模块导出的名字却没导入"（core.js 调 filePatchOutcome 忘了导入，
+// 穿过 node --check 与入口 import，只在真跑到那条路径才 ReferenceError）。
+// 试过的做法与为什么放弃：
+//   1. 先剥注释/字符串再扫调用点 —— 正则、模板、字符串混排时会把成片代码一起吃掉
+//      （core.js 的 export function findDshHome 就被"剥模板"吞掉，造成 209 条误报）。
+//   2. 不剥、用原文 + 声明/导入白名单 —— 剩 6 条里 0 条真阳性：inject/apply/exec 这类
+//      出现在字符串与注释里的调用、以及被当成函数调用的插件字段，文本层面分不开。
+// 结论：没有 parser 就做不出一份零误报的检查，而本仓的零依赖策略不允许引入 parser；
+// 一条每次都喊 5 声狼来了的提示，比没有提示更糟。
+// 替代方案（已落地）：tests/lib/wiring.test.js —— 同一个不变量，用测试而不是提示来守，
+// 跑在 pre-commit 的 test:ci 里，毫秒级。要复现本类问题，先看那个文件。
+
 const hints = unusedExports.length + internalAssertions.length + ownTempDirs.length;
 if (unusedExports.length > 0) {
   console.warn("提示（不阻塞）：未使用导出 " + unusedExports.length + " 个（规则 5；宿主按名字取用的入口会误报）：");
