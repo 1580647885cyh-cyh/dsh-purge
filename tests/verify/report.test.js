@@ -217,7 +217,7 @@ test("renderReportMarkdown 输出边界、入口、模板契约与提示词预�
   assert.match(markdown, /漂移 #8/);
   assert.match(markdown, /official anchor line/);
   assert.match(markdown, /桌面壳 close 回调：/);
-  assert.match(markdown, /桌面退出留痕：close 三路/);
+  assert.match(markdown, /桌面退出留痕：close \/ quit/);
   // 这一行原样来自 purge_status（报告不重算格式，也不在读取失败时自己拼一行）。
   assert.match(markdown, /· 最近一次桌面退出 \/ desktop exit: code=0 · signal=无 · 2026-11-03T11:20:12\.698Z · 来源=close/);
   assert.equal(markdown.includes("cwd-template-variable"), false);

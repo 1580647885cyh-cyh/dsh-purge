@@ -54,6 +54,23 @@ for (const rel of entries) {
   }
 }
 
+// —— 生成的宿主内联代码：node --check 只看文件，字符串里的语法错误要在这里当场跑一次 ——
+// 这些字符串会被补丁原样写进宿主 main.js；语法坏了不能等到 test:ci 的 harness 才炸。
+const hostInline = await import(pathToFileURL(path.join(root, "lib", "desktop-exit-trace.js")).href);
+const generated = [
+  { name: "DESKTOP_EXIT_TRACE_SOURCES_CODE", code: hostInline.DESKTOP_EXIT_TRACE_SOURCES_CODE },
+  { name: "DESKTOP_EXIT_TRACE_CLOSE_CODE", code: "return function (code, signal) {\n" + hostInline.DESKTOP_EXIT_TRACE_CLOSE_CODE + "\n};" },
+];
+for (const item of generated) {
+  try {
+    new Function(item.code);
+  } catch (error) {
+    failures += 1;
+    console.error("✗ 生成的宿主代码语法错误：" + item.name);
+    console.error(String(error && error.message ? error.message : error));
+  }
+}
+
 // —— 启发式报告（只报告，不阻塞）：规则 4 / 规则 5 里能机械发现的那一半 ——
 // 宿主按名字取插件入口（apply/name/inject/Config）或按约定取工具名，仓库里查不到引用，属于正常误报。
 const SKIP_EXPORT_NAMES = new Set(["default", "name", "inject", "apply", "Config", "reusable", "help", "main"]);
@@ -161,9 +178,70 @@ function addedDocCountLines() {
   return hits;
 }
 
+// 规则 6（守卫也是产物）：新增的补丁替换文本 / 宿主内联代码里的 typeof 形状守卫，
+// 提示逐个确认「依赖缺席」的故障对照。只提示，不判定；未跟踪的新文件也算新增。
+const GUARD_RE = /typeof\s+[A-Za-z_$][\w$]*(?:\.[\w$]+)?\s*[!=]==\s*\\?"(?:function|object)\\?"/;
+
+const GUARD_GLOBALS = new Set(["process", "Buffer", "JSON", "Date", "String", "Number", "Array", "Object"]);
+const guardDeclaredCache = new Map();
+function guardDeclared(full) {
+  if (guardDeclaredCache.has(full)) return guardDeclaredCache.get(full);
+  const set = new Set();
+  try {
+    for (const match of fs.readFileSync(full, "utf8").matchAll(/(?:function|var|let|const)\s+([A-Za-z_$][\w$]*)/g)) set.add(match[1]);
+  } catch {
+    // 读不到就当没有本地声明；守卫提示仍然给出。
+  }
+  guardDeclaredCache.set(full, set);
+  return set;
+}
+
+function guardName(line) {
+  const match = /typeof\s+([A-Za-z_$][\w$]*)/.exec(line);
+  return match ? match[1] : "";
+}
+
+function shouldSkipGuard(rel, line) {
+  const name = guardName(line);
+  if (!name || GUARD_GLOBALS.has(name)) return true;
+  return guardDeclared(path.join(root, rel)).has(name);
+}
+
+function addedTraceGuards() {
+  const targets = ["lib/core.js", "lib/desktop-exit-trace.js"];
+  const hits = [];
+  const diff = spawnSync("git", ["diff", "-U0", "HEAD", "--", ...targets], { cwd: root, encoding: "utf8", windowsHide: true });
+  if (diff.status === 0 && diff.stdout) {
+    let file = "";
+    let line = 0;
+    for (const raw of diff.stdout.split(/\r?\n/)) {
+      if (raw.startsWith("+++ b/")) { file = path.normalize(raw.slice(6)); continue; }
+      const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)/.exec(raw);
+      if (hunk) { line = Number(hunk[1]); continue; }
+      const added = raw.slice(1);
+      if (raw.startsWith("+") && !raw.startsWith("+++") && GUARD_RE.test(added) && !shouldSkipGuard(file, added)) {
+        hits.push({ rel: file, line, text: added.trim().slice(0, 120) });
+      }
+      line += 1;
+    }
+  }
+  const untracked = spawnSync("git", ["ls-files", "--others", "--exclude-standard", "--", ...targets], { cwd: root, encoding: "utf8", windowsHide: true });
+  if (untracked.status === 0) {
+    for (const rel of untracked.stdout.split(/\r?\n/).filter(Boolean)) {
+      const full = path.join(root, rel);
+      if (!fs.existsSync(full)) continue;
+      fs.readFileSync(full, "utf8").split(/\r?\n/).forEach((line, index) => {
+        if (GUARD_RE.test(line) && !shouldSkipGuard(rel, line)) hits.push({ rel: path.normalize(rel), line: index + 1, text: line.trim().slice(0, 120) });
+      });
+    }
+  }
+  return hits;
+}
+
+const traceGuards = addedTraceGuards();
 const docCountLines = addedDocCountLines();
 
-const hints = unusedExports.length + internalAssertions.length + ownTempDirs.length + docCountLines.length;
+const hints = unusedExports.length + internalAssertions.length + ownTempDirs.length + docCountLines.length + traceGuards.length;
 if (unusedExports.length > 0) {
   console.warn("提示（不阻塞）：未使用导出 " + unusedExports.length + " 个（规则 5；宿主按名字取用的入口会误报）：");
   for (const hit of unusedExports.slice(0, 20)) console.warn("  " + hit.rel + ":" + hit.line + " " + hit.name);
@@ -176,6 +254,10 @@ if (internalAssertions.length > 0) {
 if (docCountLines.length > 0) {
   console.warn("提示（不阻塞）：文档新增行里抄了控制台串/单点计数 " + docCountLines.length + " 处（规则 9；改成引用 report 字段）：");
   for (const item of docCountLines.slice(0, 20)) console.warn("  " + item.rel + ":" + item.line + " " + item.text);
+}
+if (traceGuards.length > 0) {
+  console.warn("提示（不阻塞）：新增内联代码含 " + traceGuards.length + " 个 typeof 守卫（规则 6；逐个确认有「依赖缺席」对照）：");
+  for (const item of traceGuards.slice(0, 20)) console.warn("  " + item.rel + ":" + item.line + " " + item.text);
 }
 if (ownTempDirs.length > 0) {
   console.warn("提示（不阻塞）：测试自建临时目录 " + ownTempDirs.length + " 处（规则 2；统一用 tests/verify/helpers.js 的 tempDir）：");

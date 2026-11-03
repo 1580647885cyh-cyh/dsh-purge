@@ -198,14 +198,18 @@ node scripts/verify.mjs --json # 输出机器可读报告
     `surface` 只记事实（resources 启发式本来就能把桌面判出来）；形态（`form`）与另外三项一起判红——
     认不出形态，后面三项必然为空。差异见 [records/issue-24.md](records/issue-24.md)。
   - preset fetch 落地：在副本上把 tool-web 的 fetch 改成 false，再走公开的 purge_apply；要求重新打开并写回标记，重复应用不追加。
-  - 桌面退出留痕（A5 / #25）：补丁 #90 把一段留痕调用写进 close 回调。入口五先核对这段代码依赖的名字
-    确实是宿主 main.js 的模块级 import（fs 四件套 → node:fs、homedir → node:os；只注入不核对就是证据自造），
-    再注入同一批函数与一个只带 DSH_HOME 的 process，让**生产路径上的那段代码**真的写记录：
-    code=0 / 非 0 / signal 三路各一条，30 次退出一条不超上限，没有 DSH_HOME 时落到 homedir()/.dsh。
-    没有 fs 作用域、留痕目标不可写时都必须安静跑完（兜底分支也是产物）。写完再用公开的 purge_status 读回
-    「最近一次桌面退出」那一行，要求它与 describeDesktopExit 的输出逐字相同。故障对照两条：拔掉 close 回调里
-    那段留痕（拔的是补丁产物里的那一段，不是直调写入器）后必须没有记录；未打补丁的同源入口本来就不写。
-    对照见 [records/issue-25.md](records/issue-25.md)。
+  - 桌面退出留痕（A5-1 / #25，A5-2 / #26）：#91 把多来源块插在宿主 fs import 之后（模块作用域、只挂一次），
+    #90 让 close 回调调用同一个写入器。入口五先核对这段代码依赖的名字确实是宿主 main.js 的模块级 import
+    （fs 四件套 → node:fs、homedir → node:os、app → electron；只注入不核对就是证据自造），
+    再注入同一批函数、一个事件替身 app 与一个只带 DSH_HOME 的 process，按时序 emit
+    quit / web-contents-created→render-process-gone / uncaughtExceptionMonitor / exit：
+    四个来源各落一条、来源字段可区分；一次退出的多来源序列合成一条（chain 有序、source 记首因、
+    quit 的退出码不被后到的 exit 冲掉）；渲染崩溃只在 web-contents-created 单点挂一次、不挂 uncaughtException 本体；
+    30 次退出仍不超条数/字节上界；没有 DSH_HOME 时落到 homedir()/.dsh；没有 fs 作用域 / 目标不可写 /
+    半写损坏记录都必须安静跑完（兜底分支也是产物）。写完再用公开的 purge_status 读回「最近一次桌面退出」那一行，
+    要求它与 describeDesktopExit 的输出逐字相同（多来源记录带原因链与终结来源）。故障对照两条：拔掉 close 回调里
+    那段调用（拔的是补丁产物里的那一段，不是直调写入器）后必须没有记录；未打补丁的同源入口本来就不写。
+    对照见 [records/issue-25.md](records/issue-25.md) 与 [records/issue-26.md](records/issue-26.md)。
 - 宿主版本与适配状态（A1 / #18）：读桌面壳 `resources/app/package.json` 的 version，与插件声明的 `dshTarget` / `dshTargets` 精确比对，分「已适配 / 未适配 / 未知」三态。**三态都不影响 record.ok**——未适配只写进报告与状态，不挡 Apply（阻断会把人锁在门外）。
 - 漂移清单（A2 / #19）：文件在、但既不是目标态也没有可改的原文，且不属于布局软结算的补丁，逐条列成「补丁 → 文件 → 没命中的锚点（首行 80 字符）」。布局软补丁仍走「按布局结算」，不混进漂移。漂移不挡 Apply，但状态词必须写 `drifted`，不能压成 `skipped` / `applied`。
 - 只在报告里保留计数、路径与通过情况；提示词正文不进报告。
@@ -287,6 +291,7 @@ DSH_HOME 里的已安装副本仍是旧写法时，报告只在「待自愈」�
 | #22 | 回滚 append 改窗口式锚点 | [records/issue-22.md](records/issue-22.md) |
 | #24 | DSH NEXT 识别：拆发行形态 / 是否解 asar / 壳入口三事实 + fixture 红绿 | [records/issue-24.md](records/issue-24.md) |
 | #25 | 桌面退出留痕：close 退出码 + purge_status 读侧 + 入口五 harness | [records/issue-25.md](records/issue-25.md) |
+| #26 | 桌面退出多来源：quit / 渲染崩溃 / uncaught / exit 合成一条原因链 | [records/issue-26.md](records/issue-26.md) |
 
 ## CI 不是集成门（2026-11-03 记录）
 
@@ -315,14 +320,16 @@ DSH_HOME 里的已安装副本仍是旧写法时，报告只在「待自愈」�
 - lib/verify/isolate.js：D 盘路径校验、工作区、隔离环境、快照与差异、宿主预检。
 - lib/verify/baseline.js：保护基线封存与校验、指纹、git 关系。
 - lib/verify/asar.js：从 app.asar 解出未打补丁宿主文件。
+- 宿主壳入口原文：`<install>/resources/app/lib/main.js`；未打补丁原文用 `lib/verify/asar.js` 的 `extractAsarSubtree(asarPath, "lib", destDir)` 解出。
 - lib/verify/fixture-cache.js：fixture 缓存（#11）：键 = asar size+mtime、临时目录换名落盘、完整性核对与重建。
 - lib/verify/host-entry.js：真实宿主包加载、请求准备捕获、预设静态审计。
 - lib/verify/admin-entry.js：隔离副本管理生命周期、文件描述符探针、真实安装守卫。
 - lib/verify/backup-faults.js：备份/恢复故障注入（完整备份 / 过期备份 / 0 字节备份）。
 - lib/verify/targets.js：目标定位与逐文件目标态判定（含不适用键的搜索证据）。
 - lib/verify/target-entry.js：入口五编排、完整提示词装配与桌面壳 close 回调的运行结果证明。
-- lib/exit-ledger.js：桌面退出留痕的读写契约（DSH_HOME/dsh-purge/exit-ledger.jsonl、条数+字节上界、坏行跳过、不抛）。
-- lib/verify/exit-trace.js：入口五的 close 回调 harness（作用域注入、拔痕对照）与留痕证明。
+- lib/exit-ledger.js：桌面退出留痕的读写契约（DSH_HOME/dsh-purge/exit-ledger.jsonl、来源词表、episode 合并与原因链、条数+字节上界、坏行跳过、不抛）。
+- lib/desktop-exit-trace.js：宿主内联的多来源留痕代码（#91 模块作用域块 + #90 close 调用；上界常量从 exit-ledger 取）。
+- lib/verify/exit-trace.js：入口五的桌面退出 harness（模块作用域代码求值、事件替身模拟四个来源、episode 合并、拔痕对照、purge_status 读侧）。
 - lib/desktop-forms.js：桌面发行形态名单（harness / desktop / next），①形态 ②是否解 asar ③壳入口 各读各的字段。
 - lib/verify/desktop-next.js：入口五的 NEXT 安装树 fixture 与四项事实（含拔名单的故障对照）。
 - lib/verify/report.js：报告构建与 Markdown 渲染。

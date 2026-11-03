@@ -6,6 +6,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import * as core from "../../lib/core.js";
 import { EXIT_LEDGER_MAX_BYTES, EXIT_LEDGER_MAX_ENTRIES } from "../../lib/exit-ledger.js";
+import { DESKTOP_EXIT_TRACE_SOURCES_CODE, EXIT_TRACE_CLOSE_MARKER, EXIT_TRACE_SOURCES_BEGIN } from "../../lib/desktop-exit-trace.js";
 import * as model from "../../lib/patch-model.js";
 import { tempDir, withIsolatedHome } from "../verify/helpers.js";
 
@@ -272,20 +273,29 @@ test("接线：test:unit 必须覆盖除真宿主电池外的每个测试文件�
 });
 
 test("接线：宿主内联的留痕上界必须与 exit-ledger 的常量同口径（改上限只改一处）", () => {
-  const patch = core.ALL_PATCHES.find((item) => item.id === 90);
-  assert.ok(patch && Array.isArray(patch.replacements) && patch.replacements.length > 0, "找不到补丁 #90 的替换文案");
-  // 宿主 main.js 不能 import 插件，所以这段是内联副本；常量漂了要在单测里当场红，而不是等入口五或真机。
-  // 逐段核对：两种回调签名各一份拷贝，只改中一份同样是漂移。
-  patch.replacements.forEach((item, index) => {
-    assert.ok(
-      item.replace.includes("dshPurgeExitLines.slice(-" + EXIT_LEDGER_MAX_ENTRIES + ")"),
-      "#90 第 " + (index + 1) + " 段替换的条数上界必须等于 EXIT_LEDGER_MAX_ENTRIES(" + EXIT_LEDGER_MAX_ENTRIES + ")",
-    );
-    assert.ok(
-      item.replace.includes("Buffer.byteLength(") && item.replace.includes("> " + EXIT_LEDGER_MAX_BYTES + ")"),
-      "#90 第 " + (index + 1) + " 段替换的字节上界必须按 UTF-8（Buffer.byteLength）等于 EXIT_LEDGER_MAX_BYTES(" + EXIT_LEDGER_MAX_BYTES + ")",
-    );
-  });
+  // 宿主 main.js 不能 import 插件，所以 #91 这段是内联副本；常量漂了要在单测里当场红。
+  const code = DESKTOP_EXIT_TRACE_SOURCES_CODE;
+  assert.equal((code.match(/lines = lines\.slice\(-/g) || []).length, 1, "内联副本只留一处条数上界");
+  assert.ok(code.includes("lines = lines.slice(-" + EXIT_LEDGER_MAX_ENTRIES + ")"), "条数上界必须等于 EXIT_LEDGER_MAX_ENTRIES(" + EXIT_LEDGER_MAX_ENTRIES + ")");
+  assert.ok(code.includes("Buffer.byteLength(") && code.includes("> " + EXIT_LEDGER_MAX_BYTES + ")"), "字节上界必须按 UTF-8（Buffer.byteLength）等于 EXIT_LEDGER_MAX_BYTES(" + EXIT_LEDGER_MAX_BYTES + ")");
+  assert.equal((code.match(/dshPurgeExitEpisode/g) || []).length >= 3, true, "episode 合并规则必须在宿主内联副本里");
+  assert.ok(code.includes('"render-crash"') && code.includes('"uncaught"'), "来源词表必须写进宿主副本");
+
+  // #90 只保留 close 的接线：两段签名各接一次共享写入器，不再各带一份滚动实现。
+  const closePatch = core.ALL_PATCHES.find((item) => item.id === 90);
+  assert.ok(closePatch, "找不到补丁 #90");
+  assert.deepEqual(closePatch.markers, [EXIT_TRACE_CLOSE_MARKER], "#90 的标记必须换成共享调用");
+  const callReplacements = closePatch.replacements.filter((item) => String(item.replace).includes("dshPurgeRecordExit(\"close\""));
+  assert.equal(callReplacements.length, 3, "旧块迁移 + 两种 close 回调签名各一条调用");
+  assert.equal(closePatch.replacements.filter((item) => String(item.pattern).includes('child.once("close"')).length, 2, "只钉 close 回调的两条签名");
+  assert.equal(callReplacements.every((item) => String(item.replace).includes("desktop exit trace never blocks exit")), true, "每条调用都带不挡退出的兜底 catch");
+
+  // #91 必须排在 #90 之前：先有模块作用域写入器，close 才接得上。
+  const ids = core.ALL_PATCHES.map((item) => item.id);
+  assert.ok(ids.indexOf(91) > ids.indexOf(84), "#91 必须排在改写 close 回调的 #84 之后");
+  assert.ok(ids.indexOf(91) < ids.indexOf(90), "#91 必须排在 #90 之前（写入器先落地）");
+  const sourcesPatch = core.ALL_PATCHES.find((item) => item.id === 91);
+  assert.deepEqual(sourcesPatch.markers, [EXIT_TRACE_SOURCES_BEGIN], "#91 的标记必须是多来源块起点");
 });
 
 test("接线：core 的 apply/status 依赖的模型函数确实可调用", () => {

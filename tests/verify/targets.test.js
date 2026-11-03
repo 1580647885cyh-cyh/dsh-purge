@@ -4,6 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import { ALL_PATCHES, applyReplacementsToText, isLayoutSoftPatch, isSelfMarkedPatch, missingAnchors, patchEffectState, presetToolWebFetchEnabled, targetFiles } from "../../lib/core.js";
 import { auditTargetStatus, fixtureKeyGaps, inspectPatchTargets, searchedPathsFor } from "../../lib/verify/targets.js";
+import { EXIT_TRACE_CLOSE_MARKER, EXIT_TRACE_SOURCES_BEGIN, EXIT_TRACE_SOURCES_END } from "../../lib/desktop-exit-trace.js";
 import { extractCloseHandler, runCloseHandler } from "../../lib/verify/exit-trace.js";
 import { LEGACY_CLOSE, RC5_CLOSE } from "./desktop-close-fixture.js";
 import { tempDir } from "./helpers.js";
@@ -68,30 +69,69 @@ test("桌面壳 close 回调：旧形态仍然按基线处理（对照案例不�
   assert.equal(runCloseHandler(body, 0).failed.length, 0);
 });
 
-test("桌面退出留痕：未打补丁的 close 回调报 pending，应用后落一条留痕调用且不叠加", () => {
+const FS_IMPORT = 'import { appendFileSync, closeSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, readFile as readFile$1, readFileSync, readdirSync, readlinkSync, realpathSync, renameSync, rmSync, unlinkSync, writeFileSync, writeSync } from "node:fs";';
+
+test("桌面退出留痕：未打补丁的 close 回调报 pending，应用后接上共享写入器且不叠加", () => {
   const patch = patchOf(90);
   assert.equal(patchEffectState(RC5_CLOSE, patch), "pending", "宿主原文还在时必须报 pending，不能一上来就 drifted");
 
   const applied = applyReplacementsToText(RC5_CLOSE, patch, "main.js");
   assert.equal(applied.changed, true, "rc.5 的 close 回调必须被认出");
   const text = applied.text;
-  assert.ok(text.includes("[dsh-purge] desktop exit trace"), "要留下我们的标记");
-  assert.ok(text.includes("exit-ledger.jsonl"), "落点必须是 DSH_HOME/dsh-purge 下的留痕文件");
-  assert.ok(text.includes('source: "close"'), "来源词要写死在记录里");
+  assert.ok(text.includes("[dsh-purge] desktop exit trace call"), "要留下我们的调用标记");
+  assert.ok(text.includes("dshPurgeRecordExit"), "close 必须交给模块作用域的共享写入器");
+  assert.ok(text.includes('"close"'), "来源词要写死在调用里");
   assert.equal(patchEffectState(text, patch), "applied");
   assert.equal(applyReplacementsToText(text, patch, "main.js").changed, false, "重复应用不得叠加第二份留痕");
 
   // 留痕必须在两条早退/失败分支之前：signal 分支 return 掉之后就没有下一句了。
-  const traceAt = text.indexOf("[dsh-purge] desktop exit trace");
+  const traceAt = text.indexOf("[dsh-purge] desktop exit trace call");
   const failAt = text.indexOf("this.fail(");
   const signalAt = text.indexOf("if (code === null || signal)");
   assert.ok(traceAt > 0 && failAt > traceAt, "留痕必须落在 fail 之前");
   assert.ok(signalAt < 0 || signalAt > traceAt, "留痕必须落在 signal 早退之前");
 
-  // 旧形态（收 signal 的 0.1.x close 回调）同样能落留痕。
+  // 旧形态（收 signal 的 0.1.x close 回调）同样能接上。
   const legacy = applyReplacementsToText(LEGACY_CLOSE, patch, "main.js");
-  assert.equal(legacy.changed, true, "旧形态也要能落留痕");
-  assert.ok(legacy.text.indexOf("[dsh-purge] desktop exit trace") < legacy.text.indexOf("if (code === null || signal)"));
+  assert.equal(legacy.changed, true, "旧形态也要能接上");
+  assert.ok(legacy.text.indexOf("[dsh-purge] desktop exit trace call") < legacy.text.indexOf("if (code === null || signal)"));
+});
+
+test("桌面退出留痕：A5-1 的内联块升级成共享调用，不叠加第二份", () => {
+  const oldTrace = [
+    "\t\t\t\t// [dsh-purge] desktop exit trace: 只旁听 close 的 code/signal，不改退出行为、不改 exit code、不挡退出",
+    "\t\t\t\ttry {",
+    "\t\t\t\t\tvar dshPurgeExitHome = \"x\";",
+    "\t\t\t\t} catch (traceError) { /* [dsh-purge] desktop exit trace never blocks exit */ }",
+  ].join("\n");
+  const legacyText = RC5_CLOSE.replace('child.once("close", (code) => {', 'child.once("close", (code) => {\n' + oldTrace);
+  assert.notEqual(legacyText, RC5_CLOSE, "旧块必须真的插进去了");
+  const applied = applyReplacementsToText(legacyText, patchOf(90), "main.js");
+  assert.equal(applied.changed, true);
+  assert.equal(applied.text.includes("var dshPurgeExitHome"), false, "旧内联块要被整段换掉");
+  assert.equal((applied.text.match(/\[dsh-purge\] desktop exit trace call/g) || []).length, 1, "只留一份调用");
+  assert.equal(patchEffectState(applied.text, patchOf(90)), "applied");
+  assert.equal(applyReplacementsToText(applied.text, patchOf(90), "main.js").changed, false, "升级后重复应用不得再改");
+});
+
+test("桌面退出多来源：补丁插在 fs import 之后，四个来源各挂一次", () => {
+  const patch = patchOf(91);
+  const fixture = FS_IMPORT + "\n" + RC5_CLOSE;
+  assert.equal(patchEffectState(fixture, patch), "pending", "宿主原文还在时必须报 pending");
+  const applied = applyReplacementsToText(fixture, patch, "main.js");
+  assert.equal(applied.changed, true);
+  const text = applied.text;
+  assert.ok(text.includes(EXIT_TRACE_SOURCES_BEGIN), "要留下多来源块的起点标记");
+  assert.ok(text.includes(EXIT_TRACE_SOURCES_END), "要留下多来源块的终点标记");
+  assert.ok(text.includes('app.on("quit"'), "quit 来源必须挂上");
+  assert.ok(text.includes('app.on("web-contents-created"'), "渲染崩溃只在 web-contents-created 单点挂");
+  assert.ok(!text.includes('app.on("render-process-gone"'), "不能把渲染崩溃挂到 app 上");
+  assert.ok(text.includes('process.on("uncaughtExceptionMonitor"'), "未捕获异常用 monitor");
+  assert.ok(!text.includes('process.on("uncaughtException"'), "不挂 uncaughtException 本体");
+  assert.ok(text.includes('process.on("exit"'), "进程 exit 来源必须挂上");
+  assert.ok(text.includes("dshPurgeExitMerge"), "多来源合并规则必须在宿主内联副本里");
+  assert.equal(patchEffectState(text, patch), "applied");
+  assert.equal(applyReplacementsToText(text, patch, "main.js").changed, false, "重复应用不得叠加第二份");
 });
 
 test("完整提示词：rc.5 分支被认出，且 required 上下文过滤不被替换掉", () => {

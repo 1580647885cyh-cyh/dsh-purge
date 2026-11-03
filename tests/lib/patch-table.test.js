@@ -28,9 +28,9 @@ test("键注册表：65 个解析键 + 4 个备用布局键，互不重叠", () 
   assert.equal(isKnownFileKey("not-a-real-key"), false);
 });
 
-test("83 条补丁全部可构造，且每个 file 键都能解析到已知键", () => {
-  assert.equal(ALL_PATCHES.length, 83);
-  assert.equal(assertPatchTable(ALL_PATCHES), 83);
+test("84 条补丁全部可构造，且每个 file 键都能解析到已知键", () => {
+  assert.equal(ALL_PATCHES.length, 84);
+  assert.equal(assertPatchTable(ALL_PATCHES), 84);
   const { hard, soft } = patchTableProblems(ALL_PATCHES);
   assert.deepEqual(hard, [], "硬问题必须为 0");
   assert.deepEqual(soft, [], "软问题（缺改写写法 / 缺完成标记 / 缺 name+layer）必须为 0");
@@ -74,10 +74,26 @@ test("故障对照：重复 id 与字段类型错误同样在构造期炸", () =
   assert.throws(() => assertPatchTable([{ ...base, revertsFrom: "later" }]), /revertsFrom 不是函数/);
 });
 
+/** 跨行通配窗口：[\s\S]* / [\s\S]+ 且没有 {n,m}? 上界。 */
+function unboundedWindowPatches(patches) {
+  const out = [];
+  for (const patch of patches) {
+    const reps = Array.isArray(patch.replacements) ? patch.replacements : (patch.patterns || []).map((pattern) => ({ pattern }));
+    reps.forEach((rep, index) => {
+      if (!(rep.pattern instanceof RegExp)) return;
+      const source = rep.pattern.source;
+      if (!/\[\\s\\S\][*+]/.test(source)) return;
+      if (/\{\d+,\d+\}\?/.test(source)) return;
+      out.push({ id: patch.id, index, source });
+    });
+  }
+  return out;
+}
 test("A3 窗口锚点：带 marker 守卫的窗口必须写上界（#21 复盘）", () => {
   // 窗口锚点的失效方式：宿主改一句，无界窗口就一路吃到下一条语句。
   // #21 的两轴 review 用「句尾拉长」「换引号」两种改写试过——上界 + 右侧结构才拦得住。
-  // 这里只认 A3 的惯用法（(?!\[dsh-purge\])）：存量补丁的正则锚点不在此列，避免误报。
+  // 这里只认 A3 的惯用法（(?!\[dsh-purge\])）：存量补丁的正则锚点不在此列，避免误报；
+  // 跨行通配的全量扫描在下一条测试（#26 复盘：只扫惯用法会让新正则漏网）。
   const windows = [];
   for (const patch of ALL_PATCHES) {
     const reps = Array.isArray(patch.replacements) ? patch.replacements : (patch.patterns || []).map((pattern) => ({ pattern }));
@@ -93,6 +109,16 @@ test("A3 窗口锚点：带 marker 守卫的窗口必须写上界（#21 复盘�
   assert.deepEqual(unbounded.map((item) => "#" + item.id), [], "窗口锚点必须带 {0,N}? 上界：宿主改一句时宁可失配，也不许跨语句吃正文");
 });
 
+
+test("A3 窗口锚点：所有跨行正则窗口都要写上界（#26 复盘）", () => {
+  // 上一版只扫 A3 的 marker 惯用法，新增的旧块迁移正则 [\s\S]*? 因此漏网（#26 两轴 review 抓到）。
+  // 现在扫全部 RegExp：跨行通配必须带 {0,N}?，否则失配时可能一路吃到下一条语句。
+  const all = unboundedWindowPatches(ALL_PATCHES);
+  assert.deepEqual(all.map((item) => "#" + item.id + "[" + item.index + "]"), [], "跨行正则窗口必须带 {0,N}? 上界");
+  // 故障对照：哨兵补丁必须被同一条扫描点出来，否则这条会退化成空跑。
+  const sentinel = unboundedWindowPatches([{ id: 999, replacements: [{ pattern: /a[\s\S]*?b/ }] }]);
+  assert.deepEqual(sentinel.map((item) => item.id), [999], "无界跨行窗口必须被扫描点出来");
+});
 test("故障对照：targetFiles 键集合与注册表不一致必须报错（两个方向）", () => {
   assert.equal(assertTargetKeys([...TARGET_FILE_KEYS]), 65);
   assert.throws(() => assertTargetKeys([...TARGET_FILE_KEYS, "vendor-extra"]), (error) => {
