@@ -160,6 +160,29 @@ test("接线：适配状态与漂移都不进通过/重启条件（用户口径�
   assert.equal(/hostAdaptation|host_adaptation/.test(settleSrc), false, "换包判定不许看适配状态");
 });
 
+test("接线：每个状态词都必须在合并排序里登记（漏登记会静默降级成最差/最好）", () => {
+  const rank = core.APPLY_STATUS_RANK;
+  assert.ok(rank && typeof rank === "object", "core 必须导出 APPLY_STATUS_RANK");
+  const missing = model.STATUS_WORDS.filter((word) => rank[word] === undefined);
+  assert.deepEqual(missing, [], "状态词漏登记合并排序：" + missing.join(", "));
+  const values = Object.values(rank);
+  assert.equal(new Set(values).size, values.length, "排序值必须唯一，否则谁更差说不清");
+  assert.ok(rank.read_error < rank.drifted, "读错误必须比漂移更差");
+  assert.ok(rank.drifted < rank.missing_file, "漂移必须比文件缺失更差（文件在、但补丁没生效）");
+  assert.ok(rank.drifted < rank.applied, "漂移必须比已应用更差");
+});
+
+test("接线：状态词表里只有 pending 允许挡重启（不新增阻断的机械底线）", () => {
+  for (const word of model.STATUS_WORDS) {
+    const facts = model.statusFacts(word);
+    assert.equal(
+      facts.soft,
+      word !== "pending",
+      "状态词 " + word + " 的 soft 语义变了：新增阻断面必须是一次显式决定，不是顺手加上",
+    );
+  }
+});
+
 test("接线：多宿主合并时漂移不能盖掉更差的硬状态（APPLY_STATUS_RANK 必须登记 drifted）", () => {
   const merged = core.mergeApplyReports([
     [{ patch_id: 1, status: "read_error" }],
