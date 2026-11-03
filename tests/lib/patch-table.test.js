@@ -42,7 +42,8 @@ test("82 条补丁全部可构造，且每个 file 键都能解析到已知键",
 });
 
 test("故障对照：键名写错必须在构造期炸，不能静默变绿", () => {
-  const broken = [...ALL_PATCHES, { ...ALL_PATCHES[0], id: 9999, file: "preset-standardd" }];
+  // 保留一个可解析键，让这条只触发「未知键」一条 hard（否则会同时触发备用键规则）
+  const broken = [...ALL_PATCHES, { ...ALL_PATCHES[0], id: 9999, file: ["preset-standard", "preset-standardd"] }];
   const problems = patchTableProblems(broken);
   assert.equal(problems.hard.length, 1);
   assert.match(problems.hard[0], /#9999 引用了未知的 file 键 "preset-standardd"/);
@@ -51,6 +52,17 @@ test("故障对照：键名写错必须在构造期炸，不能静默变绿", ()
     assert.match(error.message, /preset-standardd/);
     return true;
   });
+});
+
+test("故障对照：只剩备用布局键的补丁也要在构造期炸（否则永远静默 missing）", () => {
+  const altOnly = [...ALL_PATCHES, { ...ALL_PATCHES[0], id: 9998, file: ["tool-web-nested"] }];
+  const problems = patchTableProblems(altOnly);
+  assert.equal(problems.hard.length, 1);
+  assert.match(problems.hard[0], /#9998 只引用了备用布局键/);
+  assert.throws(() => assertPatchTable(altOnly), /备用布局键/);
+  // 备用键与可解析键并存是合法的（今天的 4 个 alt 键都这么用）
+  const paired = [...ALL_PATCHES, { ...ALL_PATCHES[0], id: 9997, file: ["tool-web", "tool-web-nested"] }];
+  assert.deepEqual(patchTableProblems(paired).hard, []);
 });
 
 test("故障对照：重复 id 与字段类型错误同样在构造期炸", () => {

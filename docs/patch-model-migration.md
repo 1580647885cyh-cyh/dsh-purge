@@ -30,6 +30,12 @@
 3. **改写**：`replacements` / `patterns`+`replace` → `rewrite()`；`skipIfMarked` 变成 `rewrite` 的幂等断言。
 4. **删兼容层**：`patch-model.js` 末尾的「兼容导出」段与 `core.js` 的 re-export 一起删掉。
 
+## 与 client.js 的词表关系
+
+插件这一侧只产出六个状态词（`STATUS_WORDS`）。`client.js:1054–1065` 的 `statusKind`/`statusLabel` 另外还容错
+`unmatched` / `unlocated` / `off` —— 那三个词在插件侧已经（或从来）没有产出者，属于客户端的宽容错分支。
+本 issue 明确不改 `client.js`，所以这些分支留着；将来要清理，属于客户端那一侧的任务，不是补丁模型的。
+
 ## 现在的护栏
 
 - `assertPatchTable(ALL_PATCHES)` 在 `core.js` 加载时跑：未知 `file` 键、重复 id、字段类型错误 → 加载即失败。

@@ -56,7 +56,9 @@
 
 ### 4 · 测试面
 
-六个入口共用一个 `host-admin.test.js`：1 个 test、timeout 180 s、约 120 条断言。
+六个入口共用一个 `host-admin.test.js`：1 个 test、timeout 300 s、98 处 `assert.*`
+（`timeout` 与计数见 tests/verify/host-admin.test.js:22 与本文件写作时的 `grep -c "assert\."`；
+300 s 的实测口径见 docs/verification/README.md「测试超时的口径」）。
 tests 对 lib 的 import 只有 26 条（19 个模块），`identity` / `reapply` / `desktop` / `store-core` / `tools.js` 零单元覆盖。
 两处「赝品形状」养出死代码：`acceptance.test.js` 的 `asar.mtime`（生产端只有 `mtimeMs`，`acceptance.js:139` 永不命中）、
 `retention.test.js:10` 注释里的 `minAgeMs`（实现里没有）。
@@ -92,7 +94,7 @@ patchesLostAfterHostReset:183）+ `index.js:885–1009` 的 120 行决策树；`
 
 ### 9 · 入口骨架与记录形状
 
-六份「切环境 → 预检 → 跑 → 记结果」骨架；已验证计数：同款错误串 `String(error && error.message ? …)` **73 处 / 22 文件**、
+六份「切环境 → 预检 → 跑 → 记结果」骨架；已验证计数（`grep -rn` 于 lib/ 与 scripts/，2026-11-03）：同款错误串 `String(error && error.message ? …)` **73 处 / 22 文件**、
 `record.ok = Boolean(…)` 7 处、`kind` 标签 12 个 / 4 种命名风格、`assertHostsIsolated` 两个调用点
 （`admin-entry.js:254` 与 `probe.mjs:61` 内联重写）。
 兄弟入口横向依赖：`target-entry.js:6` 借 admin-entry 的 4 个 helper，`model-endpoint.js:3` / `preset-entry.js:4` 借 host-entry 的 `moduleUrl`。
@@ -113,7 +115,7 @@ patchesLostAfterHostReset:183）+ `index.js:885–1009` 的 120 行决策树；`
 
 ### 12 · HTTP 路由
 
-`index.js:1754–2325` 的 `installWebServer`：16 条路由、25 处手工方法守卫、15 处手写 405、52 次 `sendJson`、
+`index.js:1754–2325` 的 `installWebServer`（以下计数用 `grep -c` 数 lib/index.js）：16 条路由、25 处手工方法守卫、15 处手写 405、52 次 `sendJson`、
 123 个 try 块，两套注册机制（`registerPluginRoute` 与 `registerRoute`）。
 `allowPluginRequest`（:1719）已证明「把共性收一处」可行，剩下的流程还没收。
 

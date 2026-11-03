@@ -26,7 +26,10 @@ const modelSrc = readFileSync(path.join(repoRoot, "lib", "patch-model.js"), "utf
 function executableBody(src) {
   const dataStart = src.indexOf("const PATCHES = [");
   const dataEnd = src.indexOf("export const ALL_PATCHES");
-  const logic = dataStart >= 0 && dataEnd > dataStart ? src.slice(0, dataStart) + src.slice(dataEnd) : src;
+  const sliced = dataStart >= 0 && dataEnd > dataStart;
+  // 切片锚点改名时不许静默退化：真的切掉了一段才继续。
+  assert.ok(sliced && dataEnd - dataStart > 1000, "补丁表切片锚点失效（const PATCHES = [ … export const ALL_PATCHES），接线检查会误报为通过");
+  const logic = sliced ? src.slice(0, dataStart) + src.slice(dataEnd) : src;
   return logic
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .replace(/^\s*\/\/.*$/gm, "")
@@ -52,6 +55,12 @@ test("接线：core 用到的补丁语义都必须从 patch-model 导入", () =>
   assert.ok(declared.length > 10, "应该从 patch-model 里读出函数清单");
   const missing = declared.filter((name) => new RegExp("\\b" + name + "\\b").test(body) && !imported.has(name));
   assert.deepEqual(missing, [], "core 引用了 patch-model 的函数却没导入：" + missing.join(", "));
+});
+
+test("接线：校验器的生产调用点在（删掉调用点这条会红）", () => {
+  const body = executableBody(coreSrc);
+  assert.match(body, /assertPatchTable\(ALL_PATCHES\)/, "core 加载期必须调用 assertPatchTable(ALL_PATCHES)");
+  assert.match(body, /assertTargetKeys\(Object\.keys\(files\)\)/, "targetFiles 必须比对键集合");
 });
 
 test("接线：core 的公开面仍然保留旧的导出名（verify 与老调用点靠它）", () => {

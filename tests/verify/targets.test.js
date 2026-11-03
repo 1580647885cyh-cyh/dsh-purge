@@ -157,7 +157,8 @@ test("目标定位：缺席的键给出搜索过的位置，不混进失败", ()
       patchAppliesHere: () => true,
       fileKeysOf: (patch) => (Array.isArray(patch.file) ? patch.file : [patch.file]),
       targetFiles: () => ({ present }),
-      patchEffectState: () => "unmatched",
+      observe: () => ({ state: "foreign", ownMark: false }),
+      effectOf: () => "unmatched",
     };
     const inspected = inspectPatchTargets({ core, aiBase: dir, dshHome: dir });
     const missing = inspected.rows.find((row) => row.id === 901);
@@ -182,7 +183,8 @@ test("目标定位：副本里没有的键可以按同源文件核对（桌面�
       patchAppliesHere: () => true,
       fileKeysOf: (patch) => (Array.isArray(patch.file) ? patch.file : [patch.file]),
       targetFiles: () => ({}),
-      patchEffectState: () => "unmatched",
+      observe: () => ({ state: "foreign", ownMark: false }),
+      effectOf: () => "unmatched",
     };
     const without = inspectPatchTargets({ core, aiBase: dir, dshHome: dir });
     assert.equal(without.rows[0].evidence, "not-applicable");
