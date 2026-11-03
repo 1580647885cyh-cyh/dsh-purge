@@ -26,7 +26,7 @@ node scripts/verify.mjs --json # 输出机器可读报告
 可用参数：--root（插件源码根）、--install（桌面安装目录）、--out-root（工作区根）、--baseline-dir（基线目录）、--stamp（固定工作区名）、--no-seal（只校验不封存）。
 
 只改入口五时用 `node scripts/verify.mjs --only targets`：跳过宿主加载、预设、受控端点与管理生命周期，只跑
-目标定位与适配状态（含逐文件核对与运行结果证明），本机实测约 35 s；报告写「范围：只跑了 targets」，
+目标定位与适配状态（含逐文件核对与运行结果证明、桌面换包 harness），本机实测约 70 s；报告写「范围：只跑了 targets」，
 结论只对跑过的阶段负责。整轮结论仍以不带 `--only` 的那一轮为准。
 
 报告字段用 `node scripts/report-fields.mjs [latest|<stamp>|<report.json>] <点路径…>` 读，不要现写一次性脚本、
@@ -60,7 +60,7 @@ node scripts/verify.mjs --json # 输出机器可读报告
 | `targets.isolated` | 隔离副本的补丁事实：`statusBefore`、`statusAfter`、`summary`、`applied`、`drifted`、`unmatched`、`unresolvedKeys`、`diffs` |
 | `targets.live` | 真机安装的同类事实（无 `statusBefore/After`，另有 `shellFile` / `shellCandidates`） |
 | `targets.audit` | 状态与文件是否一致：`falseSuccess`、`ahead`、`behind`、`settledByLayout` |
-| `targets.runtime` | 入口五的运行结果证明：`completePrompt`、`shell`、`exitTrace`、`presetFetch` |
+| `targets.runtime` | 入口五的运行结果证明：`completePrompt`、`shell`、`exitTrace`、`desktopSwap`、`presetFetch` |
 | `targets.desktop` | 入口五的 NEXT 安装树（A4 / #24）：`facts`（形态 / exe / 是否换包 / 壳入口 / 进程名）与逐条 `cases`（含 `control-red` 拔名单对照） |
 | `modelToolCall` / `modelToolCallRejected` | 受控端点上的有效调用与工具集外调用 |
 | `presetEntry` / `presetMigration` / `presetAudit` | 预设注册、迁移与静态审计 |
@@ -90,6 +90,9 @@ node scripts/verify.mjs --json # 输出机器可读报告
     `acceptance-commit`（`docs/compatibility/` 引用了它下面的路径）、测试式命名与普通文件都不动；本轮工作区不删，
     目录树里 30 分钟内有过写入的也不删（按最深一层判），跳过原因按类计数进报告。清理失败只记 `retention.error`，
     不让验证失败。
+13. 桌面换包 harness（A7 / #27）只按 fixture 安装根路径匹配进程；调用生产入口前断言 app.asar 在位，
+    只走 wscript 的路径过滤。首版原型曾因 asar 缺失落到 unpacked-helper，helper 按镜像名杀进程误伤真实桌面；
+    正式 harness 不再在假安装树上跑 helper。
 
 ## 入口一：保护基线封存与校验
 
@@ -198,6 +201,10 @@ node scripts/verify.mjs --json # 输出机器可读报告
     `surface` 只记事实（resources 启发式本来就能把桌面判出来）；形态（`form`）与另外三项一起判红——
     认不出形态，后面三项必然为空。差异见 [records/issue-24.md](records/issue-24.md)。
   - preset fetch 落地：在副本上把 tool-web 的 fetch 改成 false，再走公开的 purge_apply；要求重新打开并写回标记，重复应用不追加。
+  - 桌面换包（A7 / #27）：在工作区里造假安装树（编译的 exe 桩独占 app.asar + 记录每次启动看到的布局），
+    用生产入口 `restartOfficialHarness` 起 wscript 换包脚本；失败案例用外部 PowerShell 锁住 app.asar。
+    要求：`main left 0` / `procs left 0` 早于 rename；成功 = asar 换到 `.bak` 且新进程看到 `absent`；
+    失败 = asar 仍在原位且原版按 `present` 布局重新拉起（报告 `targets.runtime.desktopSwap`）。
   - 桌面退出留痕（A5-1 / #25，A5-2 / #26）：#91 把多来源块插在宿主 fs import 之后（模块作用域、只挂一次），
     #90 让 close 回调调用同一个写入器。入口五先核对这段代码依赖的名字确实是宿主 main.js 的模块级 import
     （fs 四件套 → node:fs、homedir → node:os、app → electron；只注入不核对就是证据自造），
@@ -245,7 +252,7 @@ node scripts/verify.mjs --json # 输出机器可读报告
 - D:\dsh\tmp\check-cwd-compat.mjs：直接从 app.asar 用正则抽取 renderer 的声明和函数，再在 vm 中执行。它能证明特定 {{cwd}} 报错，但不经过宿主插件加载、预设注册或工具注册；抽取表达式会随宿主编译产物变化而失配。
 - D:\dsh\tmp\check-local-lock.mjs：直接 import 插件的 update/ui 私有模块，并用 data: URL 临时暴露更新处理函数。它能证明更新锁拒绝远程操作，但不是宿主公开调用路径，也不覆盖提示词与工具。
 
-本入口的改进：宿主公开包 + cordis 真实加载 + 真实工具注册表 + 独立宿主副本 + 真实安装只读守卫。仍未覆盖 Electron 进程和真实网络请求。
+本入口的改进：宿主公开包 + cordis 真实加载 + 真实工具注册表 + 独立宿主副本 + 真实安装只读守卫。仍未覆盖真实 Electron 进程与真实网络请求；桌面换包 harness 用假 exe 与真实 wscript 进程模拟脚本行为。
 
 其他已知局限：管理入口调用的是插件在 ToolRuntime 中注册的定义（execute），不经过 agent loop 的 pre-execute 瀑布与 guard 链；真实安装守卫比较 mtime 与 size，不逐字节比较内容。
 

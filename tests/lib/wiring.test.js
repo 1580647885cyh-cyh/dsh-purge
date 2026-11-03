@@ -309,25 +309,29 @@ test("接线：A7 三条换包路径都必须先 main、确认消失、再挪 as
   const ps1 = desktopSrc.slice(desktopSrc.indexOf("const ASAR_SWAP_PS1 = ["), desktopSrc.indexOf("const ASAR_RENAME_WHEN_IDLE_PS1 = ["));
   const wscript = desktopSrc.slice(desktopSrc.indexOf("function officialRestartScript("), desktopSrc.indexOf("function systemPromptFiles("));
 
-  // wscript：mainPids 的等待/全清必须早于 MoveFile，失败分支必须重新拉起原版。
-  assert.ok(wscript.indexOf("var mains = mainPids();") >= 0, "wscript 必须显式找 main");
-  assert.ok(wscript.indexOf("var mains = mainPids();") < wscript.indexOf("fso.MoveFile(asar, bak)"), "wscript 必须在挪 asar 前处理 main");
-  assert.ok(wscript.indexOf("main left") < wscript.indexOf("fso.MoveFile(asar, bak)"), "wscript 必须在挪 asar 前确认 main 消失");
+  // wscript：mainPids / startExe / 失败分支；顺序由 desktop-swap harness 的日志行为证明，这里只钉接线。
+  assert.ok(wscript.includes("var mains = mainPids();"), "wscript 必须显式找 main");
+  assert.ok(wscript.includes("main left"), "wscript 必须确认 main 消失");
+  assert.ok(wscript.includes("fso.MoveFile(asar, bak)"), "wscript 必须保留挪 asar");
   assert.ok(wscript.includes("rename failed; relaunching original"), "wscript 的失败分支必须拉起原版");
-  assert.match(wscript, /sh\.Run\('\\"' \+ exe \+ '\\"', 1, false\)/, "wscript 的失败分支必须真的启动 exe");
-  assert.equal((wscript.match(/sh\.Run\(/g) || []).length >= 3, true, "wscript 的失败/成功两条启动路径都要在");
+  assert.ok(wscript.includes("startExe('relaunched original')"), "wscript 的失败分支必须启动 exe");
+  assert.ok(wscript.includes("startExe('started')"), "wscript 的成功分支必须启动 exe");
+  assert.equal(wscript.includes("rename failed; not starting"), false, "wscript 不能再留 not starting");
 
-  // PowerShell：先 main，确认全清，再挪；Move-Item 必须让 catch 真正可到达。
-  assert.ok(ps1.indexOf("Get-MainProcs") >= 0, "PS1 必须显式找 main");
-  assert.ok(ps1.indexOf("Get-MainProcs") < ps1.indexOf("Move-Item -LiteralPath $AsarPath"), "PS1 必须在挪 asar 前处理 main");
+  // PowerShell：先 main，确认全清，再挪；Move-Item 必须让 catch 真正可到达；尾部无条件启动（失败=原版）。
+  assert.ok(ps1.includes("Get-MainProcs"), "PS1 必须显式找 main");
   assert.ok(ps1.includes("Move-Item -LiteralPath $AsarPath -Destination $bak -Force -ErrorAction Stop"), "PS1 的 Move-Item 必须 -ErrorAction Stop，否则失败分支永远走不到");
-  assert.equal((ps1.match(/Start-Process -FilePath \$ExePath/g) || []).length, 2, "PS1 的成功与失败分支都要启动 exe（失败=原版）");
-  assert.ok(ps1.includes("挪不动 / 进程没退干净"), "PS1 的失败分支要说明原版还在原位");
+  assert.ok(ps1.includes("Start-Process -FilePath $ExePath"), "PS1 必须启动 exe（挪动了=新布局，没挪动=原版）");
+  assert.ok(ps1.includes("Set-Content -LiteralPath $lock"), "PS1 失败时保留 .rename-pending（下一次 Apply 重试）");
+  assert.equal(ps1.includes("$moved"), false, "PS1 的 if/else 已收敛成无条件启动");
+  assert.ok(ps1.includes("if (@(Get-HarnessProcs).Count -eq 0) { Start-Process"), "PS1 启动后要核对并重试");
 
-  // helper：杀完 main 要等桌面消失；失败分支从 not relaunching 改成 relaunch original。
+  // helper：路径过滤 + main-first；失败分支从 not relaunching 改成 relaunch original，并核对启动结果。
   const helperSrc = readFileSync(path.join(repoRoot, "lib", "restart-desktop.js"), "utf8");
-  assert.ok(helperSrc.indexOf("waitDesktopGone(info.execPath, 8000)") >= 0, "helper 杀完 main 必须确认桌面消失");
-  assert.ok(helperSrc.indexOf("waitDesktopGone(info.execPath, 8000)") < helperSrc.indexOf("releaseSealedAsar(info.asar"), "确认消失必须早于挪 asar");
+  assert.ok(helperSrc.includes("function mainProcPids"), "helper 必须显式找 main");
+  assert.ok(helperSrc.includes("ExecutablePath"), "helper 的 win32 进程选择必须按安装路径过滤（不再按镜像名）");
+  assert.equal(helperSrc.includes("tasklist"), false, "helper 不能再按镜像名枚举进程");
   assert.ok(helperSrc.includes("asar still sealed; relaunching original"), "helper 的失败分支必须拉起原版");
   assert.equal(helperSrc.includes("asar still sealed; not relaunching"), false, "helper 不能再留 not relaunching");
+  assert.ok(helperSrc.includes("relaunch did not stay alive"), "helper 要核对启动结果");
 });

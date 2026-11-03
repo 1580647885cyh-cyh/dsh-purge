@@ -50,9 +50,8 @@ test("A7：asar 挪不动时把原版拉起来，挪得动时仍换包（隔离�
     assert.equal(caseById(record, "success", "main-gone-before-move").ok, true);
     assert.equal(caseById(record, "success", "success-branch").ok, true);
 
-    // 生成脚本本身：顺序钉在 main/allGone 之后才 move，失败分支含 relaunch。
+    // 生成脚本本身：失败分支含 relaunch；顺序由上面的 main-gone-before-move 日志行为证明。
     for (const group of ["failure", "success"]) {
-      assert.equal(caseById(record, group, "script-order").ok, true, group + " 的生成脚本顺序不对");
       assert.equal(caseById(record, group, "script-failure-relaunch").ok, true, group + " 的失败分支没有 relaunch");
     }
   } finally {

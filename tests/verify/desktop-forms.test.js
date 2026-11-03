@@ -281,10 +281,13 @@ test("fixture 与生产名单同名：NEXT 的目录名 / exe 名 / 进程名三
 
 test("接线：进程名与壳入口都从名单/形态字段来，不各写一套", () => {
   const restartSrc = fs.readFileSync(path.join(repoRoot, "lib", "restart-desktop.js"), "utf8");
-  assert.match(restartSrc, /desktopProcessImages\(\)/, "结束桌面应用时的进程名必须来自名单");
-  assert.doesNotMatch(restartSrc, /\["DeepSeek Harness\.exe", "DSH Desktop\.exe"\]/, "不许再手写一套进程名");
+  // A7 后 helper 改为按安装路径过滤（不再按镜像名枚举）；进程名名单仍由 core 的安装结束路径使用。
+  assert.doesNotMatch(restartSrc, /desktopProcessImages\(\)/, "helper 不再按镜像名枚举进程");
+  assert.match(restartSrc, /Get-CimInstance Win32_Process/, "helper 的 win32 进程选择必须按安装路径过滤");
+  assert.doesNotMatch(restartSrc, /tasklist/, "helper 不再用 tasklist 按镜像名枚举");
 
   const coreSrc = fs.readFileSync(path.join(repoRoot, "lib", "core.js"), "utf8");
+  assert.match(coreSrc, /desktopProcessImages\(\)/, "core 的安装进程结束必须仍从名单取进程名");
   assert.match(coreSrc, /desktop\.formHasShellEntry\(exe\)/, "壳入口必须看形态字段（而不是「官方」布尔）");
   const shellBody = coreSrc.slice(coreSrc.indexOf("export function desktopShellMain"), coreSrc.indexOf("export function desktopShellMain") + 900);
   assert.doesNotMatch(shellBody, /isOfficialHarnessExecutable/, "壳入口不得再从「官方」布尔早退（NEXT 会被误连成未定位）");

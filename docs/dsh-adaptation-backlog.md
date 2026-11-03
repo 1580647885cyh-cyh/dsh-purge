@@ -93,9 +93,10 @@ fixture 在入口五逐项落报告（`targets.desktop`）。「不解包」= �
 
 ### A7 · asar 换包顺序
 
-**状态：已落地（#27）**。三条路径（wscript / PowerShell / helper）的失败分支都会在 asar 仍密封时
-按原版布局重新拉起 exe；顺序显式成「先结束 main → 确认消失 → 再结束其余 → 全部消失 → 才挪 asar」，
-不靠 WMI / tasklist 的枚举顺序。`core.js` 的交接层与真实安装 apply/revert 未动。
+**状态：已落地（#27）**。三条路径（wscript / PowerShell / helper）都先结束 main、确认消失，再清其余、
+全部消失后才挪 asar；失败分支在 asar 仍密封时按原版布局重新拉起 exe，并核对启动结果。helper 的 win32
+进程选择从「镜像名枚举」改成「安装根路径过滤」。入口五已接 `proveAsarSwapRestart`（报告
+`targets.runtime.desktopSwap`）。`core.js` 的交接层与真实安装 apply/revert 未动。
 修前红/修后绿见 `docs/verification/records/issue-27.md`。
 
 - **宿主侧**：桌面点"应用"时 host 被杀而 Electron main 还活 → 弹 "host stopped"、asar 没挪动 = 半死
