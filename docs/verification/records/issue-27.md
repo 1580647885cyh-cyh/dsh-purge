@@ -75,7 +75,7 @@ harness：`lib/verify/desktop-swap.js`。假安装树里的 exe 是编译出来�
   `main-gone-before-move` 读的是脚本日志的公开输出（`main left 0` / `procs left 0` 早于 rename），
   不是断言内部函数。
 - 入口五已接 `proveAsarSwapRestart`：`npm run verify` 通过，报告
-  `D:\dsh\tmp\dsh-purge-verify\20261103-223548\out\report.md`；
+  `D:\dsh\tmp\dsh-purge-verify\20261103-224803\out\report.md`；
   `targets.runtime.desktopSwap.ok=true`，逐案例在 `targets.runtime.desktopSwap.cases`；
   `targets.audit` 的假成功 / 超前 / 落后均为空。报告 Markdown 新增「桌面换包顺序（A7）」一行。
 - `npm run check`：通过。
