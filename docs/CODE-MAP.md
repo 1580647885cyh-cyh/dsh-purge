@@ -13,6 +13,7 @@
 - 宿主依赖解析：`lib/host-deps.js`（锚点候选 + 宿主包根身份核对；`lib/redteam/tools.js` 用它取 `@deepseek-ai/dsh-tools`）
 - asar 解包与文件代理：`lib/extract-asar.js`（`hostFs` 路径方法按 asar 映射选 fs；fd 方法直接交给 `node:fs`）
 - 宿主面识别：`lib/surface.js`
+- 宿主版本与适配状态：`lib/host-version.js`（`parseHostVersion` / `hostTargets` / `hostAdaptation` / `readHostVersion`；A1 / #18，只报告不阻断）
 - 更新锁：`lib/local-version-lock.js`、`lib/update.js`
 - RedTeam：`lib/redteam/index.js`、`lib/redteam/tools.js`、`presets/redteam/`
 - 预设迁移：`lib/redteam/preset-migration.js`（toolFilter → agentPreset 的文本迁移、子级预设组合裁剪）

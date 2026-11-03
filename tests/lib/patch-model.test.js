@@ -6,10 +6,14 @@ import {
   STATUS_WORDS,
   applyReplacementsToText,
   effectOf,
+  filePatchOutcome,
   isLayoutSoftPatch,
+  isSelfMarkedPatch,
+  missingAnchors,
   observe,
   readyStatus,
   resultSoftOk,
+  rollupPatchStatus,
   statusFacts,
 } from "../../lib/patch-model.js";
 
@@ -92,7 +96,7 @@ test("resultSoftOk / readyStatus 是同一张事实表的两个投影", () => {
   assert.equal(readyStatus("pattern_not_found", strict), false);
   assert.equal(resultSoftOk({ st: "na" }, null), true, "行里用 st 也认");
   assert.equal(readyStatus("na"), false);
-  assert.deepEqual(STATUS_WORDS, ["applied", "already", "pending", "skipped", "missing_file", "na"]);
+  assert.deepEqual(STATUS_WORDS, ["applied", "already", "pending", "skipped", "drifted", "missing_file", "na"]);
 });
 
 test("applyReplacementsToText：改写是 observe 的另一半（幂等由内容决定）", () => {
@@ -103,4 +107,66 @@ test("applyReplacementsToText：改写是 observe 的另一半（幂等由内容
   const twice = applyReplacementsToText(once.text, patch);
   assert.equal(twice.changed, false, "第二次改写不再动文本");
   assert.equal(observe(once.text, patch).state, "target");
+});
+test("statusFacts：读/写错误只有必需补丁才挡重启（不新增阻断）", () => {
+  assert.deepEqual(statusFacts("read_error"), { soft: false, ready: false }, "不知道是哪条补丁时按最保守处理");
+  assert.deepEqual(statusFacts("read_error", { id: 1 }), { soft: true, ready: false }, "可选/普通补丁的读错误不挡重启");
+  assert.deepEqual(statusFacts("write_error:EACCES", { id: 1 }), { soft: true, ready: false });
+  assert.deepEqual(statusFacts("write_error:EACCES", { id: 1, strictFiles: true }), { soft: false, ready: false }, "必需补丁写不进去仍然要挡");
+});
+
+test("statusFacts：drifted 看得见、不挡 Apply，也不算已就绪（A2）", () => {
+  assert.deepEqual(statusFacts("drifted"), { soft: true, ready: false });
+  assert.equal(resultSoftOk({ status: "drifted" }, { id: 1, strictFiles: true }), true, "必需补丁漂移也不挡 Apply");
+  assert.equal(readyStatus("drifted", { id: 1 }), false, "漂移不是「已就绪」");
+});
+
+test("filePatchOutcome：原文对不上、也没写过 → drifted，不再混进 skipped（A2）", () => {
+  const patch = samplePatch();
+  assert.equal(filePatchOutcome("fetch: false", patch), "pending", "还能改 → pending");
+  assert.equal(filePatchOutcome("fetch: true", patch), "applied", "目标态成立 → applied");
+  assert.equal(filePatchOutcome("宿主把这段改掉了", patch), "drifted", "既非目标态、也没有待改原文 → drifted");
+});
+
+test("filePatchOutcome：自标记型补丁找不到痕迹仍算 skipped，不误报漂移", () => {
+  const undo = {
+    id: 901,
+    name: "UNDO",
+    file: "preset-standard",
+    replacements: [{ pattern: "keep // [dsh-purge] marker", replace: "keep" }],
+    markers: ["keep"],
+  };
+  assert.equal(isSelfMarkedPatch(undo), true, "pattern 本身就是本插件留下的痕迹");
+  assert.equal(filePatchOutcome("没有痕迹", undo), "skipped");
+  assert.equal(isSelfMarkedPatch(samplePatch()), false, "普通补丁认的是宿主原文");
+  assert.equal(
+    isSelfMarkedPatch({ id: 903, name: "TRACE", file: "base", replacements: [{ pattern: "old dsh-purge: marker", replace: "new" }] }),
+    true,
+    "旧脚本留下的 dsh-purge: 标记同样算自标记",
+  );
+});
+
+test("rollupPatchStatus：写错误 > 必需缺原文 > drifted > applied（A2 的优先级）", () => {
+  const base = {
+    applied: 0, already: 0, missing: 0, notFound: 0, drifted: 0,
+    lastError: null, keyCount: 1, layoutSoft: false, strictFiles: false,
+  };
+  assert.equal(rollupPatchStatus({ ...base, applied: 1, lastError: "write_error:EACCES" }), "write_error:EACCES", "写错误不能被 applied 吞成绿");
+  assert.equal(rollupPatchStatus({ ...base, drifted: 1, applied: 1 }), "drifted", "漂移压过已完成");
+  assert.equal(rollupPatchStatus({ ...base, strictFiles: true, notFound: 1, drifted: 1 }), "pattern_not_found", "必需补丁缺原文仍是硬失败");
+  assert.equal(rollupPatchStatus({ ...base, applied: 1 }), "applied");
+  assert.equal(rollupPatchStatus({ ...base, already: 1, notFound: 0 }), "already");
+  assert.equal(rollupPatchStatus({ ...base, notFound: 0 }), "skipped");
+});
+
+test("missingAnchors：只列没命中的锚点，带定位用的头 80 字符", () => {
+  const patch = samplePatch({
+    replacements: [
+      { pattern: "fetch: false", replace: "fetch: true" },
+      { pattern: "line three", replace: "line three ok" },
+    ],
+  });
+  assert.deepEqual(missingAnchors("fetch: false\n还好这段没变", patch).map((item) => item.head), ["line three"]);
+  assert.deepEqual(missingAnchors("完全对不上", patch).map((item) => item.index), [0, 1]);
+  assert.deepEqual(missingAnchors("fetch: false\nline three", patch), []);
 });

@@ -7,6 +7,7 @@
 
 - 桌面布局：`<install>/resources/app/dsh/node_modules/@deepseek-ai`（另有 `resources/app/node_modules` 门面）。
 - 解析与身份核对：`lib/host-deps.js`；验证侧封装：`lib/verify/host-entry.js` 的 `resolveHostInstall` / `loadHostModules`。
+- **版本真源**：适配判定读桌面壳的 `<install>/resources/app/package.json`（`@deepseek-ai/dsh-desktop`），**不读** `resources/app/dsh/package.json` 里的运行时版本；判定与三态在 `lib/host-version.js`（A1 / #18）。未适配不阻断，只进报告与状态。
 
 ## 服务与入口
 

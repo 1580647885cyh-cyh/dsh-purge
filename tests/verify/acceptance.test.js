@@ -29,7 +29,7 @@ function passingReport(overrides = {}) {
 }
 
 const OK_LOCK = { assertError: "ERR_DSH_PURGE_LOCAL_VERSION_LOCK", status: { locked: true, pinned: true, channel: "stable", updateTarget: "local" } };
-const OK_PLUGIN = { version: "1.1.71", localVersionLock: { version: "1.1.71", remoteUpdates: false, editable: true }, dshTarget: "0.2.0-rc.2" };
+const OK_PLUGIN = { version: "1.1.71", localVersionLock: { version: "1.1.71", remoteUpdates: false, editable: true }, dshTarget: "0.2.1-rc.5", dshTargets: ["0.2.1-rc.5"] };
 const OK_HOST = { shellVersion: "0.2.1-rc.5", runtimeVersion: "0.2.1-rc.5", buildCommit: "d4db512a969f", asar: { size: 182766714, mtime: "2026-10-29" } };
 const OK_BASELINE = { file: "D:/baseline.json", treeHash: "abc123", fileCount: 149 };
 
@@ -42,6 +42,9 @@ test("验收记录：全部入口 + 锁 + 版本都成立才判通过", () => {
   assert.equal(record.plugin.versionOk, true);
   assert.deepEqual(record.notApplicable.map((item) => item.id), ["#30"]);
   assert.deepEqual(record.notExecuted, NOT_EXECUTED);
+  // A1：适配状态进记录，但不参与通过判定 —— 未适配不等于验收失败。
+  assert.equal(record.host.adaptation.state, "adapted");
+  assert.deepEqual(record.plugin.dshTargets, ["0.2.1-rc.5"]);
 });
 
 test("验收记录：任一入口失败、锁未拒绝或版本变化都判未通过", () => {
@@ -54,6 +57,13 @@ test("验收记录：任一入口失败、锁未拒绝或版本变化都判未�
 
   const versionDrift = collectAcceptance({ report: passingReport(), lock: OK_LOCK, plugin: { ...OK_PLUGIN, version: "1.1.72" }, host: OK_HOST, baseline: OK_BASELINE });
   assert.equal(versionDrift.ok, false, "版本不是 1.1.71 时必须判未通过");
+
+  const hostAhead = collectAcceptance({
+    report: passingReport(), lock: OK_LOCK, plugin: OK_PLUGIN,
+    host: { ...OK_HOST, shellVersion: "0.2.1-rc.6" }, baseline: OK_BASELINE,
+  });
+  assert.equal(hostAhead.host.adaptation.state, "unadapted", "宿主升级即记为未适配");
+  assert.equal(hostAhead.ok, true, "未适配只记录，不让验收失败（用户口径：不阻断）");
 });
 
 test("验收记录：Markdown 只带结构性事实，不含提示词正文；未执行项必须列出", () => {

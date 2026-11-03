@@ -24,6 +24,8 @@ const targetsRecord = (ok) => ({
   ok,
   error: "",
   aiBase: "D:/fixture/@deepseek-ai",
+  // A1：宿主版本与适配状态（只记录，不参与通过判定）。
+  host: { state: "unadapted", version: "0.2.1-rc.6", targets: ["0.2.1-rc.5"], label: "未适配", path: "C:/install/resources/app/package.json" },
   live: {
     aiBase: "C:/install/@deepseek-ai",
     summary: { effective: 56, satisfied: 8, pending: 1, unmatched: 5, "not-applicable": 15, unknown: 0 },
@@ -39,6 +41,8 @@ const targetsRecord = (ok) => ({
     applied: [],
     notApplicable: [{ id: 30, name: "HOOKS_CLAUDE_DENY_ALLOW", optional: true, keys: [{ key: "hooks-claude-code", searched: ["D:/fixture/dsh-hooks-claude-code"] }] }],
     unmatched: [{ id: 77, name: "REWIND_DROP_SENT_ON_APPEND", optional: true, keys: ["conversation-client"] }],
+    // A2：漂移清单（补丁 → 文件 → 没命中的锚点）。
+    drifted: [{ id: 8, name: "ENGINE_APPROVAL_BYPASS", optional: false, strict: false, keys: [{ key: "base", path: "D:/fixture/dsh-base/cordis.patch.yml", anchors: [{ index: 0, kind: "literal", head: "official anchor line" }] }] }],
     unresolvedKeys: [{ key: "hooks-codex", resolved: false, searched: ["D:/fixture/dsh-hooks-codex"] }],
     diffs: { apply: 47, reapply: 0 },
   },
@@ -172,6 +176,10 @@ test("renderReportMarkdown 输出边界、入口、模板契约与提示词预�
   assert.match(markdown, /## 目标定位与适配状态（#6）/);
   assert.match(markdown, /应用后逐文件核对：写进文件 62/);
   assert.match(markdown, /对不上 #77/);
+  assert.match(markdown, /宿主版本与适配状态：0\.2\.1-rc\.6 — 未适配（本版声明：0\.2\.1-rc\.5）/);
+  assert.match(markdown, /漂移（原文对不上、也没改上）：1 条/);
+  assert.match(markdown, /漂移 #8/);
+  assert.match(markdown, /official anchor line/);
   assert.match(markdown, /桌面壳 close 回调：/);
   assert.equal(markdown.includes("cwd-template-variable"), false);
   assert.equal(markdown.includes("PRIME DIRECTIVE"), false);

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
-import { ALL_PATCHES, applyReplacementsToText, isLayoutSoftPatch, patchEffectState, presetToolWebFetchEnabled } from "../../lib/core.js";
+import { ALL_PATCHES, applyReplacementsToText, isLayoutSoftPatch, isSelfMarkedPatch, missingAnchors, patchEffectState, presetToolWebFetchEnabled } from "../../lib/core.js";
 import { auditTargetStatus, inspectPatchTargets, searchedPathsFor } from "../../lib/verify/targets.js";
 import { extractCloseHandler, runCloseHandler } from "../../lib/verify/target-entry.js";
 import { tempDir } from "./helpers.js";
@@ -159,6 +159,9 @@ test("目标定位：缺席的键给出搜索过的位置，不混进失败", ()
       targetFiles: () => ({ present }),
       observe: () => ({ state: "foreign", ownMark: false }),
       effectOf: () => "unmatched",
+      isLayoutSoftPatch: () => false,
+      isSelfMarkedPatch: () => false,
+      missingAnchors: () => [],
     };
     const inspected = inspectPatchTargets({ core, aiBase: dir, dshHome: dir });
     const missing = inspected.rows.find((row) => row.id === 901);
@@ -185,6 +188,9 @@ test("目标定位：副本里没有的键可以按同源文件核对（桌面�
       targetFiles: () => ({}),
       observe: () => ({ state: "foreign", ownMark: false }),
       effectOf: () => "unmatched",
+      isLayoutSoftPatch: () => false,
+      isSelfMarkedPatch: () => false,
+      missingAnchors: () => [],
     };
     const without = inspectPatchTargets({ core, aiBase: dir, dshHome: dir });
     assert.equal(without.rows[0].evidence, "not-applicable");
@@ -207,4 +213,56 @@ test("适配状态：状态说成功但文件里没有事实，按假成功报�
   assert.deepEqual(audit.settledByLayout.map((item) => item.id), [2]);
   assert.deepEqual(audit.ahead.map((item) => item.id), [3]);
   assert.ok(isLayoutSoftPatch(patchOf(4)) && isLayoutSoftPatch(patchOf(5)), "身份句/审批句属于布局软补丁");
+});
+test("适配状态：原文对不上、也没写过 → 漂移清单带锚点；布局软不混进来（A2）", () => {
+  const dir = tempDir("targets-drift-");
+  const file = path.join(dir, "drift.js");
+  fs.writeFileSync(file, "宿主改成别的写法" + "\n", "utf8");
+  try {
+    const core = {
+      ALL_PATCHES: [
+        { id: 904, name: "DRIFT", file: "present", replacements: [{ pattern: "official anchor", replace: "patched" }], markers: ["patched"] },
+        { id: 905, name: "LAYOUT", file: "present", replacements: [{ pattern: "another anchor", replace: "x" }] },
+      ],
+      patchAppliesHere: () => true,
+      fileKeysOf: (patch) => [patch.file],
+      targetFiles: () => ({ present: file }),
+      observe: () => ({ state: "foreign", ownMark: false }),
+      effectOf: () => "unmatched",
+      // 用真实实现，不在 stub 里自造 head —— 否则断言的是测试自己的 fixture（CODING_STANDARDS #6）。
+      missingAnchors: (text, patch, fp) => missingAnchors(text, patch, fp),
+      isLayoutSoftPatch: (patch) => patch.id === 905,
+      isSelfMarkedPatch: (patch) => isSelfMarkedPatch(patch),
+    };
+    const inspected = inspectPatchTargets({ core, aiBase: dir, dshHome: dir });
+    assert.deepEqual(inspected.drifted.map((row) => row.id), [904], "布局软补丁按设计可能本来就没这句，不进漂移清单");
+    assert.equal(inspected.drifted[0].keys[0].path, file, "漂移项要指到具体文件");
+    assert.equal(inspected.drifted[0].keys[0].anchors[0].head, "official anchor", "漂移项要带没命中的锚点");
+    assert.equal(inspected.rows.find((row) => row.id === 905).layoutSoft, true);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+test("适配状态：自标记型补丁找不到痕迹不算漂移（与 patchStatus 的 skipped 对齐）", () => {
+  const dir = tempDir("targets-selfmark-");
+  const file = path.join(dir, "trace.js");
+  fs.writeFileSync(file, "宿主原文" + "\n", "utf8");
+  try {
+    const core = {
+      ALL_PATCHES: [{ id: 906, name: "UNDO", file: "present", replacements: [{ pattern: "x // [dsh-purge] marker", replace: "x" }] }],
+      patchAppliesHere: () => true,
+      fileKeysOf: (patch) => [patch.file],
+      targetFiles: () => ({ present: file }),
+      observe: () => ({ state: "foreign", ownMark: false }),
+      effectOf: () => "unmatched",
+      missingAnchors: (text, patch, fp) => missingAnchors(text, patch, fp),
+      isLayoutSoftPatch: () => false,
+      isSelfMarkedPatch: (patch) => isSelfMarkedPatch(patch),
+    };
+    const inspected = inspectPatchTargets({ core, aiBase: dir, dshHome: dir });
+    assert.equal(inspected.rows[0].selfMarked, true, "pattern 全是本插件痕迹 → 自标记型");
+    assert.deepEqual(inspected.drifted, [], "本来就没写过，不进漂移清单");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

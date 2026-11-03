@@ -1,9 +1,10 @@
 # 兼容修订记录（Windows 官方桌面 DSH 0.2.1-rc.5）
 
-- 生成时间：2026-11-02T16:59:11.768Z
+- 生成时间：2026-11-03T05:18:08.843Z
 - 结论：通过（范围见「未执行的检查」）
 - 插件版本：1.1.71（本地锁 {"version":"1.1.71","remoteUpdates":false,"editable":true}）
 - 宿主：shell 0.2.1-rc.5 / runtime 0.2.1-rc.5 / build d4db512a969f
+- 宿主适配：0.2.1-rc.5 — 已适配（本版声明：0.2.1-rc.5）
 - app.asar：182766714 字节 / mtime 2026-10-29T14:02:52.000Z
 - 本地锁实际行为：远程更新/切换/回滚被拒绝（ERR_DSH_PURGE_LOCAL_VERSION_LOCK），状态 pinned
 - 本地依赖来源：无远程依赖（dependencies 为空，保持本地可编辑）
@@ -44,24 +45,24 @@
 
 ## 已确认不适用
 
-- #76（可选）PRESET_UNRESTRICTED_IDENTITY_STRIP · 搜索过 D:\dsh\tmp\dsh-purge-verify\acceptance-commit\home\.agent-presets\unrestricted\agent.cordis.yml
-- #71（非可选）LIANGSHEN_IDENTITY_LINE · 搜索过 D:\dsh\tmp\dsh-purge-verify\acceptance-commit\home\.agent-presets\liangshen\agent.cordis.yml ; D:\dsh\tmp\dsh-purge-verify\acceptance-commit\home\profiles\desktop\node_modules\@linxin666\dsh-liangshen\presets\liangshen\agent.cordis.yml ; D:\dsh\tmp\dsh-purge-verify\acceptance-commit\home\profiles\web\node_modules\@linxin666\dsh-liangshen\presets\liangshen\agent.cordis.yml
-- #28（可选）LIANGSHEN_PHASE1_KEEP_INJECT · 搜索过 D:\dsh\tmp\dsh-purge-verify\acceptance-commit\home\.agent-presets\liangshen\tool-bootstrap.mjs
-- #30（可选）HOOKS_CLAUDE_DENY_ALLOW · 搜索过 D:\dsh\tmp\dsh-purge-verify\acceptance-commit\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh-hooks-claude-code ; D:\dsh\tmp\dsh-purge-verify\acceptance-commit\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh\node_modules\@deepseek-ai\dsh-hooks-claude-code ; D:\dsh\tmp\dsh-purge-verify\acceptance-commit\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh\node_modules\@deepseek-ai\dsh-hooks-claude-code
-- #31（可选）HOOKS_CODEX_DENY_ALLOW · 搜索过 D:\dsh\tmp\dsh-purge-verify\acceptance-commit\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh-hooks-codex ; D:\dsh\tmp\dsh-purge-verify\acceptance-commit\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh\node_modules\@deepseek-ai\dsh-hooks-codex ; D:\dsh\tmp\dsh-purge-verify\acceptance-commit\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh\node_modules\@deepseek-ai\dsh-hooks-codex
-- #64（可选）HOOKS_STOP_STEER_NEUTRAL · 搜索过 D:\dsh\tmp\dsh-purge-verify\acceptance-commit\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh-hooks-claude-code ; D:\dsh\tmp\dsh-purge-verify\acceptance-commit\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh\node_modules\@deepseek-ai\dsh-hooks-claude-code ; D:\dsh\tmp\dsh-purge-verify\acceptance-commit\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh\node_modules\@deepseek-ai\dsh-hooks-claude-code
-- #65（可选）HOOKS_PRESTEP_REJECT_NEUTRAL · 搜索过 D:\dsh\tmp\dsh-purge-verify\acceptance-commit\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh-hooks-claude-code ; D:\dsh\tmp\dsh-purge-verify\acceptance-commit\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh\node_modules\@deepseek-ai\dsh-hooks-claude-code ; D:\dsh\tmp\dsh-purge-verify\acceptance-commit\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh\node_modules\@deepseek-ai\dsh-hooks-claude-code
-- preset-unrestricted（可选）未定位键 · 搜索过 D:\dsh\tmp\dsh-purge-verify\acceptance-commit\home\.agent-presets\unrestricted\agent.cordis.yml
-- preset-liangshen（可选）未定位键 · 搜索过 D:\dsh\tmp\dsh-purge-verify\acceptance-commit\home\.agent-presets\liangshen\agent.cordis.yml
-- preset-liangshen-pkg（可选）未定位键 · 搜索过 D:\dsh\tmp\dsh-purge-verify\acceptance-commit\home\profiles\desktop\node_modules\@linxin666\dsh-liangshen\presets\liangshen\agent.cordis.yml ; D:\dsh\tmp\dsh-purge-verify\acceptance-commit\home\profiles\web\node_modules\@linxin666\dsh-liangshen\presets\liangshen\agent.cordis.yml
-- user-approval-invariant（可选）未定位键 · 搜索过 D:\dsh\tmp\dsh-purge-verify\acceptance-commit\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh-user-approval\lib\invariant.js ; D:\dsh\tmp\dsh-purge-verify\acceptance-commit\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh\node_modules\@deepseek-ai\dsh-user-approval\lib\invariant.js
-- liangshen-tool-bootstrap（可选）未定位键 · 搜索过 D:\dsh\tmp\dsh-purge-verify\acceptance-commit\home\.agent-presets\liangshen\tool-bootstrap.mjs
-- tool-web-nested（可选）未定位键 · 搜索过 D:\dsh\tmp\dsh-purge-verify\acceptance-commit\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh\node_modules\@deepseek-ai\dsh-tool-web\lib\index.js
-- hooks-claude-code（可选）未定位键 · 搜索过 D:\dsh\tmp\dsh-purge-verify\acceptance-commit\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh-hooks-claude-code ; D:\dsh\tmp\dsh-purge-verify\acceptance-commit\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh\node_modules\@deepseek-ai\dsh-hooks-claude-code
-- hooks-claude-code-nested（可选）未定位键 · 搜索过 D:\dsh\tmp\dsh-purge-verify\acceptance-commit\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh\node_modules\@deepseek-ai\dsh-hooks-claude-code
-- hooks-codex（可选）未定位键 · 搜索过 D:\dsh\tmp\dsh-purge-verify\acceptance-commit\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh-hooks-codex ; D:\dsh\tmp\dsh-purge-verify\acceptance-commit\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh\node_modules\@deepseek-ai\dsh-hooks-codex
-- hooks-codex-nested（可选）未定位键 · 搜索过 D:\dsh\tmp\dsh-purge-verify\acceptance-commit\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh\node_modules\@deepseek-ai\dsh-hooks-codex
-- system-prompt-nested（可选）未定位键 · 搜索过 D:\dsh\tmp\dsh-purge-verify\acceptance-commit\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh\node_modules\@deepseek-ai\dsh-system-prompt\lib\index.js
+- #76（可选）PRESET_UNRESTRICTED_IDENTITY_STRIP · 搜索过 D:\dsh\tmp\dsh-purge-verify\acceptance-20261103-131643\home\.agent-presets\unrestricted\agent.cordis.yml
+- #71（非可选）LIANGSHEN_IDENTITY_LINE · 搜索过 D:\dsh\tmp\dsh-purge-verify\acceptance-20261103-131643\home\.agent-presets\liangshen\agent.cordis.yml ; D:\dsh\tmp\dsh-purge-verify\acceptance-20261103-131643\home\profiles\desktop\node_modules\@linxin666\dsh-liangshen\presets\liangshen\agent.cordis.yml ; D:\dsh\tmp\dsh-purge-verify\acceptance-20261103-131643\home\profiles\web\node_modules\@linxin666\dsh-liangshen\presets\liangshen\agent.cordis.yml
+- #28（可选）LIANGSHEN_PHASE1_KEEP_INJECT · 搜索过 D:\dsh\tmp\dsh-purge-verify\acceptance-20261103-131643\home\.agent-presets\liangshen\tool-bootstrap.mjs
+- #30（可选）HOOKS_CLAUDE_DENY_ALLOW · 搜索过 D:\dsh\tmp\dsh-purge-verify\acceptance-20261103-131643\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh-hooks-claude-code ; D:\dsh\tmp\dsh-purge-verify\acceptance-20261103-131643\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh\node_modules\@deepseek-ai\dsh-hooks-claude-code ; D:\dsh\tmp\dsh-purge-verify\acceptance-20261103-131643\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh\node_modules\@deepseek-ai\dsh-hooks-claude-code
+- #31（可选）HOOKS_CODEX_DENY_ALLOW · 搜索过 D:\dsh\tmp\dsh-purge-verify\acceptance-20261103-131643\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh-hooks-codex ; D:\dsh\tmp\dsh-purge-verify\acceptance-20261103-131643\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh\node_modules\@deepseek-ai\dsh-hooks-codex ; D:\dsh\tmp\dsh-purge-verify\acceptance-20261103-131643\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh\node_modules\@deepseek-ai\dsh-hooks-codex
+- #64（可选）HOOKS_STOP_STEER_NEUTRAL · 搜索过 D:\dsh\tmp\dsh-purge-verify\acceptance-20261103-131643\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh-hooks-claude-code ; D:\dsh\tmp\dsh-purge-verify\acceptance-20261103-131643\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh\node_modules\@deepseek-ai\dsh-hooks-claude-code ; D:\dsh\tmp\dsh-purge-verify\acceptance-20261103-131643\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh\node_modules\@deepseek-ai\dsh-hooks-claude-code
+- #65（可选）HOOKS_PRESTEP_REJECT_NEUTRAL · 搜索过 D:\dsh\tmp\dsh-purge-verify\acceptance-20261103-131643\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh-hooks-claude-code ; D:\dsh\tmp\dsh-purge-verify\acceptance-20261103-131643\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh\node_modules\@deepseek-ai\dsh-hooks-claude-code ; D:\dsh\tmp\dsh-purge-verify\acceptance-20261103-131643\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh\node_modules\@deepseek-ai\dsh-hooks-claude-code
+- preset-unrestricted（可选）未定位键 · 搜索过 D:\dsh\tmp\dsh-purge-verify\acceptance-20261103-131643\home\.agent-presets\unrestricted\agent.cordis.yml
+- preset-liangshen（可选）未定位键 · 搜索过 D:\dsh\tmp\dsh-purge-verify\acceptance-20261103-131643\home\.agent-presets\liangshen\agent.cordis.yml
+- preset-liangshen-pkg（可选）未定位键 · 搜索过 D:\dsh\tmp\dsh-purge-verify\acceptance-20261103-131643\home\profiles\desktop\node_modules\@linxin666\dsh-liangshen\presets\liangshen\agent.cordis.yml ; D:\dsh\tmp\dsh-purge-verify\acceptance-20261103-131643\home\profiles\web\node_modules\@linxin666\dsh-liangshen\presets\liangshen\agent.cordis.yml
+- user-approval-invariant（可选）未定位键 · 搜索过 D:\dsh\tmp\dsh-purge-verify\acceptance-20261103-131643\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh-user-approval\lib\invariant.js ; D:\dsh\tmp\dsh-purge-verify\acceptance-20261103-131643\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh\node_modules\@deepseek-ai\dsh-user-approval\lib\invariant.js
+- liangshen-tool-bootstrap（可选）未定位键 · 搜索过 D:\dsh\tmp\dsh-purge-verify\acceptance-20261103-131643\home\.agent-presets\liangshen\tool-bootstrap.mjs
+- tool-web-nested（可选）未定位键 · 搜索过 D:\dsh\tmp\dsh-purge-verify\acceptance-20261103-131643\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh\node_modules\@deepseek-ai\dsh-tool-web\lib\index.js
+- hooks-claude-code（可选）未定位键 · 搜索过 D:\dsh\tmp\dsh-purge-verify\acceptance-20261103-131643\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh-hooks-claude-code ; D:\dsh\tmp\dsh-purge-verify\acceptance-20261103-131643\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh\node_modules\@deepseek-ai\dsh-hooks-claude-code
+- hooks-claude-code-nested（可选）未定位键 · 搜索过 D:\dsh\tmp\dsh-purge-verify\acceptance-20261103-131643\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh\node_modules\@deepseek-ai\dsh-hooks-claude-code
+- hooks-codex（可选）未定位键 · 搜索过 D:\dsh\tmp\dsh-purge-verify\acceptance-20261103-131643\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh-hooks-codex ; D:\dsh\tmp\dsh-purge-verify\acceptance-20261103-131643\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh\node_modules\@deepseek-ai\dsh-hooks-codex
+- hooks-codex-nested（可选）未定位键 · 搜索过 D:\dsh\tmp\dsh-purge-verify\acceptance-20261103-131643\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh\node_modules\@deepseek-ai\dsh-hooks-codex
+- system-prompt-nested（可选）未定位键 · 搜索过 D:\dsh\tmp\dsh-purge-verify\acceptance-20261103-131643\desktop\resources\app\dsh\node_modules\@deepseek-ai\dsh\node_modules\@deepseek-ai\dsh-system-prompt\lib\index.js
 
 ## 未执行的检查（不标记为通过）
 
@@ -71,14 +72,14 @@
 
 ## 独立恢复材料
 
-- 保护基线快照：D:\dsh\data\dsh-purge\baseline\baseline-acceptance-commit.json
-- treeHash：de61ac63d1ae891da78a2f4faec9d70b6b7d919b218b7be3bb21f3d9daa16fc6（152 个文件）
+- 保护基线快照：D:\dsh\data\dsh-purge\baseline\baseline-acceptance-20261103-131643.json
+- treeHash：90ff7d8aae07e7eb12f0a29b527911bb361c717a36391667aa5ab62bca7a7a16（173 个文件）
 - 校验：`npm run verify -- --no-seal` 会用快照逐文件比对当前源码；快照只在本机 D 盘，不进仓库。
 
 ## 执行记录
 
-- node scripts/verify.mjs --stamp acceptance-commit
-- D:\dev-runtime\node\node-v24.14.1-win-x64\node.exe D:\dsh\local-plugins\dsh-purge\scripts\acceptance.mjs --out docs\compatibility --name rc5-acceptance --stamp acceptance-commit
+- node scripts/verify.mjs --stamp acceptance-20261103-131643
+- D:\dev-runtime\node\node-v24.14.1-win-x64\node.exe D:\dsh\local-plugins\dsh-purge\scripts\acceptance.mjs --out D:\dsh\local-plugins\dsh-purge\docs\compatibility --name rc5-acceptance
 - 环境：platform=win32 / arch=x64 / node=24.14.1 / electron=null / execPath=D:\dev-runtime\node\node-v24.14.1-win-x64\node.exe / surface=auto / homedir=C:\Users\27591
 
 ## 报告摘要

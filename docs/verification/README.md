@@ -153,6 +153,8 @@ node scripts/verify.mjs --json # 输出机器可读报告
   - 完整提示词装配：在应用后的副本里 import 宿主自己的 dsh-system-prompt，挂一个 complete 段 + dsh-purge 段 + required 上下文，走 assemble；要求注入段与 complete 段共存、抑制运行上下文后 required 仍在。对照：同一装配在未打补丁的真实宿主上必须丢掉注入段。
   - 桌面壳 close 回调：从 app.asar 解出 lib/main.js，先在未打补丁的入口上跑 code=0（必须报错），再按补丁替换后跑 code=0 / code=3；要求前者不 fail、后者报错、重复应用 0 改动。
   - preset fetch 落地：在副本上把 tool-web 的 fetch 改成 false，再走公开的 purge_apply；要求重新打开并写回标记，重复应用不追加。
+- 宿主版本与适配状态（A1 / #18）：读桌面壳 `resources/app/package.json` 的 version，与插件声明的 `dshTarget` / `dshTargets` 精确比对，分「已适配 / 未适配 / 未知」三态。**三态都不影响 record.ok**——未适配只写进报告与状态，不挡 Apply（阻断会把人锁在门外）。
+- 漂移清单（A2 / #19）：文件在、但既不是目标态也没有可改的原文，且不属于布局软结算的补丁，逐条列成「补丁 → 文件 → 没命中的锚点（首行 80 字符）」。布局软补丁仍走「按布局结算」，不混进漂移。漂移不挡 Apply，但状态词必须写 `drifted`，不能压成 `skipped` / `applied`。
 - 只在报告里保留计数、路径与通过情况；提示词正文不进报告。
 
 ## 期望来源与允许的表示差异
@@ -400,7 +402,7 @@ DSH_HOME 里的已安装副本仍是旧写法时，报告只在「待自愈」�
 - 宿主必需运行上下文与插件贡献的最终呈现：working-directory 按 dsh-working-directory 的公开契约注册（required、JSON 引号目录、不插值），抑制可选上下文后仍在、refresh 后仍在；受控请求的上下文消息命中它，系统消息命中 dsh-purge 正文。
 - 与保护基线比较、不宽泛忽略：段名与长度、变量集合、注入段份数、上下文段名逐项比较；report.ok 把模板契约与预设跑通算硬契约，不再降级成已知故障。
 - 重复组装与连续步骤稳定：两次装配的提示词、段、上下文一致；受控工具调用照旧（modelToolCall / modelToolCallRejected 未受本票影响）。
-- 版本与锁：1.1.71、localVersionLock（remoteUpdates:false、editable:true）与 dshTarget 未改动；baseline.plugin 记录照旧。
+- 版本与锁：1.1.71、localVersionLock（remoteUpdates:false、editable:true）未改动。`dshTarget` / `dshTargets` 是**插件声明的已适配版本**（手写常量，本机实测过 0.2.1-rc.5）；**实测宿主版本**只看报告的 `host.adaptation.version` 与 `host.adaptation.state`，两者不要混用（#18）。
 
 ## 回归记录（#11 验证 fixture 缓存）
 
