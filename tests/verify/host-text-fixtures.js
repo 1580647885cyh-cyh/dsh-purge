@@ -5,7 +5,8 @@
  * #21 第一版把 rc.5 的 `WEB_SURFACE_PROMPT` 缩成了手写骨架（少了 "this GUI" / "this app"、少了 \` 转义
  * 反引号），窗口锚点看起来能用、对真机字节却不可靠；两轴 review 判成「证据不得自证」。
  *
- * 规矩：**声称是原文的**文本登记在这里，由 host-text-fixtures.test.js 回真机核对子串；
+ * 规矩：**声称是原文的**文本登记在这里，由 host-text-fixtures.test.js 回真机核对子串
+ * （Apply 之后 live 文件是补丁态，测试优先从 app.asar 取原文）；
  * **故意裁过的等价形状**（#6 的 close 回调、assemble 分支那类）留在各自测试里，不要混进来。
  *
  * 出处：rc.5 桌面安装 `resources/app/dsh/node_modules/@deepseek-ai/<package>/<relative>`。

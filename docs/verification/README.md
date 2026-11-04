@@ -58,7 +58,7 @@ node scripts/verify.mjs --json # 输出机器可读报告
 | `admin.diffs` | 管理入口的文件差异：`apply` / `reapply` / `revert`，各含 `changed` / `added` / `removed` 与文件名列表 |
 | `admin.backupFaults` | 备份/恢复故障注入的逐案例结果（完整 / 过期 / 0 字节备份） |
 | `targets.isolated` | 隔离副本的补丁事实：`statusBefore`、`statusAfter`、`summary`、`applied`、`drifted`、`unmatched`、`unresolvedKeys`、`diffs` |
-| `targets.live` | 真机安装的同类事实（无 `statusBefore/After`，另有 `shellFile` / `shellCandidates`） |
+| `targets.live` | 真机安装的同类事实（无 `statusBefore/After`，另有 `shellFile` / `shellCandidates` / `webReclaim`；`webReclaim.installed` = A6-1 sidecar 已随 Apply 落进真实 `bin.js`） |
 | `targets.audit` | 状态与文件是否一致：`falseSuccess`、`ahead`、`behind`、`settledByLayout` |
 | `targets.runtime` | 入口五的运行结果证明：`completePrompt`、`shell`、`exitTrace`、`desktopSwap`、`presetFetch` |
 | `targets.desktop` | 入口五的 NEXT 安装树（A4 / #24）：`facts`（形态 / exe / 是否换包 / 壳入口 / 进程名）与逐条 `cases`（含 `control-red` 拔名单对照） |

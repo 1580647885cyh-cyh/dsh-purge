@@ -3,7 +3,9 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { HOST_TEXT_FIXTURES } from "./host-text-fixtures.js";
+import { extractAsarSubtree } from "../../lib/verify/asar.js";
 import { resolveHostInstall } from "../../lib/verify/host-entry.js";
+import { tempDir } from "./helpers.js";
 
 /**
  * 宿主原文 fixture 的回核（#21 复盘）。
@@ -13,12 +15,28 @@ import { resolveHostInstall } from "../../lib/verify/host-entry.js";
  * CI / 干净检出时跳过——它核对的是本机安装，不是仓库内容。
  */
 
-function hostBase() {
+function hostInstall() {
   try {
-    return resolveHostInstall({}).hostBase;
+    return resolveHostInstall({});
   } catch {
-    return "";
+    return null;
   }
+}
+
+/** 优先读 app.asar 原文；Apply 之后 live 文件是打过补丁的，不能拿来核对「原文」。 */
+function hostText(install, entry) {
+  const asar = path.join(install.resourcesDir, "app.asar");
+  if (fs.existsSync(asar)) {
+    const tmp = tempDir("host-text-" + entry.id + "-");
+    try {
+      extractAsarSubtree(asar, "dsh/node_modules/@deepseek-ai/" + entry.package + "/lib", tmp);
+      return fs.readFileSync(path.join(tmp, entry.relative.replace(/^lib[\\/]/, "")), "utf8");
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  }
+  const file = path.join(install.hostBase, entry.package, entry.relative);
+  return fs.readFileSync(file, "utf8");
 }
 
 test("宿主原文 fixture：每份文本都有包/文件出处，够长且不含 CRLF", () => {
@@ -38,16 +56,16 @@ test("宿主原文 fixture：每份文本都有包/文件出处，够长且不�
   }
 });
 
-test("宿主原文 fixture：逐条都是安装目录里那个文件的子串（没有宿主时跳过）", (t) => {
-  const base = hostBase();
-  if (!base) {
+test("宿主原文 fixture：逐条都是宿主原文（优先 app.asar，没有宿主时跳过）", (t) => {
+  const install = hostInstall();
+  if (!install) {
     t.skip("未安装桌面宿主，跳过");
     return;
   }
   for (const entry of HOST_TEXT_FIXTURES) {
-    const file = path.join(base, entry.package, entry.relative);
+    const file = path.join(install.hostBase, entry.package, entry.relative);
     assert.ok(fs.existsSync(file), entry.id + " 的宿主文件不存在：" + file);
-    const host = fs.readFileSync(file, "utf8");
+    const host = hostText(install, entry);
     for (const [name, text] of Object.entries(entry.texts)) {
       assert.ok(
         host.includes(text),

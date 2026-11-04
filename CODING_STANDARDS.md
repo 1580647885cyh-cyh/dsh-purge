@@ -40,6 +40,9 @@ npm run check、测试和 pre-commit 钩子拦住，留下的都是判断题。
     在 try 内必须 `-ErrorAction Stop`。机械的一半由 `tests/lib/wiring.test.js` 与 `lib/verify/desktop-swap.js` 守。
 12. **fixture 安全**：任何调用生产重启 / 杀进程路径的 fixture，先断言 `app.asar` 在位，只按 fixture 根路径匹配进程；
     不得在假安装树上走 `unpacked-helper` 或镜像名枚举。探针坑见 `docs/verification/probe-gotchas.md`。
+13. **生成的宿主 sidecar 必须自包含**：hide-console / web-reclaim 这类通过 `bin.js` 顶部 import 注入的模块，
+    不得 import 插件；序列化进 sidecar 的函数不得捕获外部绑定；至少用子进程执行生成源跑一条测试
+    （参考 `tests/verify/web-reclaim.test.js` 的 `runSidecar`）。
 
 ## 工具化现状（决定与原因）
 

@@ -90,6 +90,8 @@ startedAt / execPath / argv 写到 `<DSH_HOME>/dsh-purge/web-server-<port>.json`
 新增自包含 preflight sidecar，在 profile boot / webserver 绑端口之前按「记录 pid → 端口监听者 →
 命令行」核对并回收。PID 复用/陌生端口不误杀，杀后等 pid 消失 + 端口空；有界 ≤5s、绝不抛错。
 测试 `tests/verify/web-reclaim.test.js`；票级记录 `docs/verification/records/issue-29.md`。
+**使用边界**：本机不以 web 为日常面；A6-1 只做 #28 复现到的缺陷，验证停在隔离/测试，
+sidecar 已随 Apply 装入真实 `bin.js`，不做真实 web 长期看护。
 
 - **宿主侧**：`dsh web` detached 重启会留孤儿 server，下次启动绑端口失败在 0.2.x 是 **fatal**
   （等插件层处理就晚了）（上游 `8d237ba`、`1bdf239`）。

@@ -30,6 +30,7 @@
 | 11 | RedTeam 两个前门 | Worth | redteam/store-core.js / tools.js | 待做 |
 | 12 | HTTP 路由 | Worth | index.js（installWebServer） | 待做 |
 | 13 | 状态快照（gatherState） | Speculative | core.js / index.js / client.js | 待做（牵动面板，单独立项） |
+| 14 | web-reclaim 记录/决策/sidecar/注入 | Worth | lib/web-reclaim.js | 待做（A6-1 复盘新增） |
 
 ## 逐条证据（只写能核对的东西）
 
@@ -118,6 +119,15 @@ patchesLostAfterHostReset:183）+ `index.js:885–1009` 的 120 行决策树；`
 `index.js:1754–2325` 的 `installWebServer`（以下计数用 `grep -c` 数 lib/index.js）：16 条路由、25 处手工方法守卫、15 处手写 405、52 次 `sendJson`、
 123 个 try 块，两套注册机制（`registerPluginRoute` 与 `registerRoute`）。
 `allowPluginRequest`（:1719）已证明「把共性收一处」可行，剩下的流程还没收。
+
+### 14 · web-reclaim 的记录 / 决策 / sidecar / 注入（A6-1 复盘新增）
+
+`lib/web-reclaim.js` 约 408 行里住着四种关注点：记录文件读写（`webServerRecordPath` / `read` / `write` / `remove`）、
+纯决策（`decideWebReclaim` / `recordDispositionAfterKill`）、sidecar 源（`webReclaimEntrySource` 的 300 行模板）、
+以及 `bin.js` 注入/还原（`install...` / `revert...`）。测试面也按这四件事各写一段。
+删掉注入/还原，记录与决策仍独立可用；删掉 sidecar 源，安装器只剩一个文件拷贝。终局：
+`web-server-record` / `web-reclaim-decision` / `web-reclaim-entry`（自包含源，测试直接跑）/ `web-reclaim-install`。
+约束：sidecar 仍不得 import 插件；记录路径与 helper `findDshHome` 的契约先按 #29 的测试钉住。
 
 ### 13 · 状态快照
 

@@ -49,6 +49,8 @@
   - 杀不掉：伪造 `taskkill.exe` 失败 → 进程仍在、记录保留、sidecar exit 0。
 - `npm run check`：通过。
 - `npm run verify`：通过，报告 `D:\dsh\tmp\dsh-purge-verify\20261103-234158\out\report.md`；入口五不回退。
+- Apply 后只读：`targets.live.webReclaim.installed=true`（真实 `bin.js` + sidecar 都在；
+  报告 `20261104-092351`，`node scripts/verify.mjs --only targets --skip-swap`）。
 
 ## 边界（不冒充真机）
 
@@ -58,3 +60,5 @@
 - win32 的回收路径在本机实测；POSIX 走 `lsof` / `ss` / `ps` 的 best-effort，未在本机 E2E。
 - 杀不掉用伪造 taskkill 模拟权限失败，不是真的 ACL/权限拒绝；记录保留策略与不阻塞 boot 的行为已覆盖。
 - preflight 预算 5s；它会让每次 `dsh web` boot 多一次记录/端口检查（无记录时只有一次 netstat/端口检查）。
+- 本机用户不使用 web：A6-1 按 #28 复现落地后，验证停在隔离/测试；sidecar 已随 Apply 装入真实 `bin.js`，
+  不做真实 web 长期看护。

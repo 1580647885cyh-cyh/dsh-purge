@@ -39,6 +39,7 @@
 - 读报告字段：`node scripts/report-fields.mjs [latest|<stamp>|<report.json>] <点路径…>`（`lib/verify/report-fields.js`），取不到的字段进 `missing`
 - 验收与兼容记录（#8）：`scripts/acceptance.mjs`（`npm run acceptance`）、`lib/verify/acceptance.js`、`docs/compatibility/`
 - 预设与工具契约入口：`lib/verify/preset-entry.js`、`lib/verify/model-endpoint.js`
+- 共享进程/端口工具：`lib/verify/process-utils.js`（`systemPath` / `waitFor` / `pidAlive` / `killPid` / `freePort` / `portOpen`；desktop-swap 与 web-reclaim 测试共用）
 - 测试：`tests/verify/`（验证设施）、`tests/lib/`（补丁模型 / 表校验 / 接线检查）、`tests/archive/`（原版与能力面守卫）；`npm test`（无宿主时集成测试自动 skip）
 - **宿主原文 fixture**：`tests/verify/host-text-fixtures.js` —— 测试里**声称是宿主原文**的文本只能登记在这里，
   由 `host-text-fixtures.test.js` 回真机核对子串；手写骨架会被判成「证据自证」（#21 复盘钉的故障对照）。
@@ -47,7 +48,7 @@
 - 检查：`npm run check`（全量 `node --check` + 入口 import）；`npm run test:unit`（除真宿主电池外的全部测试，秒级；清单由 `tests/lib/wiring.test.js` 守，新增测试文件必须加进去）
 - 钩子：`git config core.hooksPath .githooks` 启用；跳过单次用 `DSH_PURGE_SKIP_HOOKS=1`；钩子跑 `npm run test:ci`（全量测试 + `--test-force-exit` + 单例超时），新增测试文件不用改钩子
 - 审查标准：`CODING_STANDARDS.md`（审查代理读；实现代理不需要）
-- 架构审查候选与顺序：`docs/architecture-review-2026-11-03.md`（13 条深化机会、证据行号、强度与先后；起手新候选前先读它）
+- 架构审查候选与顺序：`docs/architecture-review-2026-11-03.md`（14 条深化机会、证据行号、强度与先后；起手新候选前先读它）
 - **DSH 适配清单**：`docs/dsh-adaptation-backlog.md`（8 条要做的、4 条不需要、能力面红线、顺序与验收；动手前先读它和 ADR-0002）
 
 ## 常见改动从哪里开始

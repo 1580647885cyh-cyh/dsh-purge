@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import net from "node:net";
 import path from "node:path";
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import {
@@ -16,84 +15,23 @@ import {
   webServerRecordPath,
   writeWebServerRecord,
 } from "../../lib/web-reclaim.js";
+import { freePort, killPid, pidAlive, portOpen, systemPath, waitFor } from "../../lib/verify/process-utils.js";
 import { tempDir } from "./helpers.js";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const node = process.execPath;
-
-function systemPath() {
-  const root = process.env.SystemRoot || "C:\\Windows";
-  return [
-    path.join(root, "System32"),
-    root,
-    path.join(root, "System32", "Wbem"),
-    path.join(root, "System32", "WindowsPowerShell", "v1.0"),
-  ].join(path.delimiter);
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 function write(file, text) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, text, "utf8");
 }
 
-function pidAlive(pid) {
-  try {
-    process.kill(Number(pid), 0);
-    return true;
-  } catch (error) {
-    return error && error.code === "EPERM";
-  }
-}
-
-function freePort() {
-  return new Promise((resolve, reject) => {
-    const server = net.createServer();
-    server.on("error", reject);
-    server.listen(0, "127.0.0.1", () => {
-      const port = server.address().port;
-      server.close(() => resolve(port));
-    });
-  });
-}
-
-function portOpen(port) {
-  return new Promise((resolve) => {
-    const socket = net.createConnection({ host: "127.0.0.1", port }, () => {
-      socket.destroy();
-      resolve(true);
-    });
-    socket.on("error", () => resolve(false));
-    socket.setTimeout(300, () => {
-      socket.destroy();
-      resolve(false);
-    });
-  });
-}
-
-async function waitFor(fn, timeoutMs = 10000, step = 100) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    if (await fn()) return true;
-    await sleep(step);
-  }
-  return false;
-}
-
-function killTree(pid) {
-  if (!pid) return;
-  try {
-    if (process.platform === "win32") {
-      spawnSync("taskkill.exe", ["/PID", String(pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
-    } else {
-      process.kill(pid, "SIGKILL");
-    }
-  } catch {
-    // already gone
-  }
+function fakeTaskkill(root) {
+  const dir = path.join(root, "fakebin");
+  fs.mkdirSync(dir, { recursive: true });
+  // 复制 cmd.exe 成 taskkill.exe：cmd 不认识 /PID，退出非 0 且不杀进程，用来模拟权限失败。
+  fs.copyFileSync(process.env.ComSpec || "C:\\Windows\\System32\\cmd.exe", path.join(dir, "taskkill.exe"));
+  return dir;
 }
 
 function fakeDshServer(root, port, { dsh = true } = {}) {
@@ -140,7 +78,7 @@ function runSidecar(root, home, port, { pathOverride = "" } = {}) {
   child.stderr.on("data", (chunk) => { err += chunk; });
   return new Promise((resolve) => {
     const timer = setTimeout(() => {
-      killTree(child.pid);
+      killPid(child.pid);
       resolve({ code: null, out, err, timeout: true });
     }, 15000);
     child.on("exit", (code) => {
@@ -234,7 +172,7 @@ test("端到端：记录里的 dsh web 监听者被回收，记录删除", async
     assert.equal(await portOpen(port), false, "端口没有释放");
     assert.equal(readWebServerRecord({ dshHome: home, port }), null, "记录没有删除");
   } finally {
-    if (child) killTree(child.pid);
+    if (child) killPid(child.pid);
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
@@ -257,7 +195,7 @@ test("PID 复用：记录 pid 活着但没在监听该端口，不杀", async ()
     assert.equal(pidAlive(child.pid), true, "PID 复用被误杀");
     assert.equal(readWebServerRecord({ dshHome: home, port }), null, "stale 记录没有清掉");
   } finally {
-    if (child) killTree(child.pid);
+    if (child) killPid(child.pid);
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
@@ -275,7 +213,7 @@ test("陌生端口：没有记录且监听者不是 dsh web，不动它", async 
     assert.equal(pidAlive(child.pid), true, "陌生进程被误杀");
     assert.equal(await portOpen(port), true, "陌生端口被误关");
   } finally {
-    if (child) killTree(child.pid);
+    if (child) killPid(child.pid);
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
@@ -300,16 +238,17 @@ test("只回收本次端口：另一个端口的记录 server 不受影响", asy
     assert.equal(pidAlive(b.pid), true, "别的端口 server 被误杀");
     assert.notEqual(readWebServerRecord({ dshHome: home, port: portB }), null, "别的端口记录被误删");
   } finally {
-    if (a) killTree(a.pid);
-    if (b) killTree(b.pid);
+    if (a) killPid(a.pid);
+    if (b) killPid(b.pid);
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
-test("helper：openBrowser=false 时写 pid/port/state，不冒充 listening", async () => {
+test("helper：优先用 host 传入的 dshHome，openBrowser=false 时写 pid/port/state", async () => {
   const root = tempDir("web-helper-");
   let server = null;
   try {
-    const home = path.join(root, "home");
+    const envHome = path.join(root, "env-home");
+    const payloadHome = path.join(root, "payload-home");
     const port = await freePort();
     const serverFile = path.join(root, "server.mjs");
     write(serverFile, [
@@ -323,6 +262,7 @@ test("helper：openBrowser=false 时写 pid/port/state，不冒充 listening", a
       execPath: node,
       argv: [serverFile, String(port)],
       cwd: root,
+      dshHome: payloadHome,
       host: "127.0.0.1",
       port,
       pid: 0,
@@ -332,24 +272,25 @@ test("helper：openBrowser=false 时写 pid/port/state，不冒充 listening", a
       cwd: root,
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
-      env: { ...process.env, DSH_HOME: home, DSH_PURGE_RESTART: JSON.stringify(payload), PATH: systemPath() },
+      env: { ...process.env, DSH_HOME: envHome, DSH_PURGE_RESTART: JSON.stringify(payload), PATH: systemPath() },
     });
     let err = "";
     server.stderr.on("data", (chunk) => { err += chunk; });
     const code = await new Promise((resolve) => {
-      const timer = setTimeout(() => { killTree(server.pid); resolve(null); }, 10000);
+      const timer = setTimeout(() => { killPid(server.pid); resolve(null); }, 10000);
       server.on("exit", (value) => { clearTimeout(timer); resolve(value); });
     });
     assert.equal(code, 0, err);
-    const record = readWebServerRecord({ dshHome: home, port });
+    const record = readWebServerRecord({ dshHome: payloadHome, port });
     assert.ok(record, "helper 没有写记录");
     assert.equal(record.port, port);
     assert.equal(record.state, "spawned");
     assert.equal(record.url, "");
     assert.equal(pidAlive(record.pid), true, "记录 pid 不是活着的 server");
-    killTree(record.pid);
+    assert.equal(readWebServerRecord({ dshHome: envHome, port }), null, "payload dshHome 优先，不能落到 DSH_HOME");
+    killPid(record.pid);
   } finally {
-    if (server) killTree(server.pid);
+    if (server) killPid(server.pid);
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
@@ -361,10 +302,7 @@ test("杀不掉：taskkill 失败时不误报、记录保留、进程继续活�
     const port = await freePort();
     child = fakeDshServer(root, port);
     assert.equal(await waitFor(() => portOpen(port)), true);
-    const fakeBin = path.join(root, "fakebin");
-    fs.mkdirSync(fakeBin, { recursive: true });
-    const fakeTaskkill = path.join(fakeBin, "taskkill.exe");
-    fs.copyFileSync(process.env.ComSpec || "C:\\Windows\\System32\\cmd.exe", fakeTaskkill);
+    const fakeBin = fakeTaskkill(root);
     writeWebServerRecord({
       dshHome: home,
       port,
@@ -375,7 +313,7 @@ test("杀不掉：taskkill 失败时不误报、记录保留、进程继续活�
     assert.equal(pidAlive(child.pid), true, "taskkill 失败后进程应仍在");
     assert.notEqual(readWebServerRecord({ dshHome: home, port }), null, "失败后记录应保留");
   } finally {
-    if (child) killTree(child.pid);
+    if (child) killPid(child.pid);
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
