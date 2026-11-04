@@ -84,6 +84,12 @@ test("接线：core 的公开面仍然保留旧的导出名（verify 与老调�
   }
 });
 
+test("接线：预设状态写盘必须走 presetDeclareOutcome（读不到不能写成 registered）", () => {
+  const statusSrc = readFileSync(path.join(repoRoot, "lib", "redteam", "index.js"), "utf8");
+  assert.match(statusSrc, /presetDeclareOutcome\(\{ broken, workerBroken, listError \}\)/, "声明状态必须由 presetDeclareOutcome 生成");
+  assert.match(statusSrc, /listError = error\?\.message \|\| String\(error\)/, "registry.list() 抛错必须落成 listError，不能吞掉");
+});
+
 test("接线：A2 的漂移判定必须接在生产路径上（拔掉任何一处都要红）", () => {
   const body = executableBody(coreSrc);
   // 状态聚合必须把 drifted 传进去，否则 filePatchOutcome 判出来也会被丢掉。

@@ -16,6 +16,7 @@
 
 - **detached PowerShell 不执行**：`spawn("powershell.exe", { detached: true })` 在本机 exit 0、不跑脚本
   （cmd / wscript / node 的 detached 正常）。验证 PowerShell 路径时用前台 / `execFileSync`，或直接走 wscript。
+- **`glob` 只覆盖工作区**：对工作区外的绝对路径（宿主安装目录、`C:\…`）返回空数组且不报错；列宿主目录用 `Get-ChildItem`。
 - **PowerShell 会把模块缓存写到 cwd**：`Microsoft\Windows\PowerShell\ModuleAnalysisCache` 落在进程 cwd。
   探针 / helper 的 PowerShell 调用显式 `cwd` 到 `os.tmpdir()` 或 fixture 的 tmp 目录。
 - **`job_output` 单次 wait 上限 120s**：pre-commit 钩子可能 120–135s；先 `wait:false` 再分段 `wait`，

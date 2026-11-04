@@ -63,7 +63,7 @@ node scripts/verify.mjs --json # 输出机器可读报告
 | `targets.runtime` | 入口五的运行结果证明：`completePrompt`、`shell`、`exitTrace`、`desktopSwap`、`presetFetch` |
 | `targets.desktop` | 入口五的 NEXT 安装树（A4 / #24）：`facts`（形态 / exe / 是否换包 / 壳入口 / 进程名）与逐条 `cases`（含 `control-red` 拔名单对照） |
 | `modelToolCall` / `modelToolCallRejected` | 受控端点上的有效调用与工具集外调用 |
-| `presetEntry` / `presetMigration` / `presetAudit` | 预设注册、迁移与静态审计 |
+| `presetEntry` / `presetMigration` / `presetAudit` | 预设注册、迁移与静态审计；`presetEntry.coverage`（挂载覆盖）、`ownRows` / `toolsRow`（自研行与工具编译结果） |
 | `pendingSelfHeal` | 已安装副本仍是旧写法、等下次启动自愈的项（不算失败） |
 | `knownFailures` | 已复现且归属明确的故障；非空时验收不通过 |
 | `commands` | 本轮实际执行过的命令 |
@@ -138,6 +138,7 @@ node scripts/verify.mjs --json # 输出机器可读报告
 模块：lib/verify/preset-entry.js、lib/verify/model-endpoint.js。
 
 - 预设行入口：真实宿主的预设是把 agent.cordis.yml 里每一行交给 cordis ctx.plugin(模块, 行 config)。丢弃 toolFilter 后，挂载断在 tool-subagent 这一行的 apply 上。入口四按同一条路径挂载该行：负向（把旧 toolFilter 加回去）必须复现宿主报错，正向（迁移后）必须挂上，worker 组合必须只少 tool-subagent-fork / tool-workflow / tool-ralph 三行。
+- 自研行挂载（A8）：入口四还会挂上预设里所有自研行（`./anchor-gate.mjs`、`dsh-purge/redteam/tools`），其中 `redteam-tools` 会用宿主 `defineTool` 编译全部工具参数——任何 `type:"object"` 漏 `additionalProperties` 都会当场失败，而不是等真实宿主把整份预设记 `broken`。报告写「挂载覆盖 N/M 行」与「工具行编译出 N 个工具」；自研行少挂一行，`presetEntry.ok` 即失败。
 - 已安装副本迁移：真实 DSH_HOME 只读；副本复制到工作区后执行与插件启动时相同的迁移，比对“只删除 toolFilter 那几行、只新增 agentPreset 与一行说明”，并连续迁移两次确认幂等。真实副本仍是旧写法时，报告把它列进「待自愈」，不算已知故障。
 - 组合校验：用宿主 registry 导出的 entryListProblem 校验迁移后与 worker 的行列表。
 - 参数契约：对每个已注册工具用宿主自己的 validateJsonSchemaValue 跑两类案例——空参数对象必须被接受，未声明的额外属性必须被拒绝（结论在 hostEntry.tools[].contract）。

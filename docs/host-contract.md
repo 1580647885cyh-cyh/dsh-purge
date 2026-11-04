@@ -53,6 +53,10 @@
 - `defineTool(...)` 把作者 DSL 编译进宿主子集（`type`/`oneOf`/`properties`/`required`/`additionalProperties`/`items`/`enum`/`const` + 注解），子集外的写法在定义期就报错。
 - 裸 `ctx.tools.register()` 的定义**不**带执行前参数校验；校验来自 `defineTool` 包的那层 `validate`。
 - 对象根用 `assertObjectJsonSchema`：要求 `type: "object"`；`pattern`/`format`/`minimum`/`anyOf` 之类的 keyword 直接判违规。
+- **rc.5 的硬规则**：作者 DSL 里任何 `type: "object"` 节点必须显式给布尔 `additionalProperties`，漏了
+  `defineTool()` 当场抛错（`dsh-tools/lib/index.js` 的 author 编译分支，rc.5 在 `:699` 附近），
+  该行 apply 失败 → registry 把整份预设记 `broken`，红队模式直接消失。改工具参数后跑 `npm run verify`
+  的入口四：它会真挂 `redteam-tools` 行，让宿主自己编译这些 schema（A8）。
 
 ## 已知不可行与边界
 

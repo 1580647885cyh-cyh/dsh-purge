@@ -103,6 +103,40 @@ test("knownFailures 不再把 {{cwd}} 模板记成已知故障（#5 已修复）
   assert.deepEqual(failures.map((failure) => failure.id), []);
 });
 
+test("预设入口：自研行挂载失败进已知故障，挂载覆盖与工具行进报告（A8 复盘）", () => {
+  const failures = knownFailures({
+    presetEntry: { ownRows: [{ id: "redteam-tools", ok: false, error: "payload.additionalProperties must be explicitly true or false" }] },
+  });
+  assert.deepEqual(failures.map((failure) => failure.id), ["preset-own-row-redteam-tools"]);
+  assert.match(failures[0].summary, /redteam-tools/);
+
+  const ws = workspace("report-preset-coverage");
+  const tools = new Array(56).fill("tool");
+  const report = buildReport({
+    workspace: ws,
+    seal: { baseline: { sourceRoot: "D:\\repo", source: { treeHash: "abc", fileCount: 2 }, plugin: { version: "1.1.71" }, host: { shellVersion: "0.2.1-rc.5" }, environment: {}, git: {} } },
+    sealCheck: { ok: true },
+    hostEntry: { ok: true, prompt: { length: 10, sha256: "deadbeef" }, sections: [], variables: ["provider", "model", "cwd"], tools: [], toolErrors: [], templateContract: templateContract(true), promptPreset: promptPreset(true) },
+    presetAudit: { files: [] },
+    presetEntry: {
+      ok: true,
+      dir: "D:\\repo\\presets\\redteam",
+      legacy: { rejected: true, error: "" },
+      migrated: { ok: true, error: "", tools: [] },
+      worker: { removed: [], ok: true, error: "", agentPreset: "redteam-worker", mount: { ok: true, error: "", tools: [] } },
+      composition: { problem: "", rows: 19 },
+      ownRows: [{ id: "redteam-tools", ok: true, error: "", tools }],
+      coverage: { rows: 19, mounted: ["tool-subagent", "anchor-gate", "redteam-tools"], own: ["anchor-gate", "redteam-tools"], unmountedOwn: [] },
+      toolsRow: { ok: true, error: "", tools },
+    },
+    admin: { ok: true, hosts: [], steps: [], diffs: {}, liveHost: { ok: true, checked: 0 } },
+    targets: targetsRecord(true),
+  });
+  const markdown = renderReportMarkdown(report);
+  assert.match(markdown, /挂载覆盖：3\/19 行/);
+  assert.match(markdown, /工具行 redteam-tools：ok · 宿主 defineTool 编译出 56 个工具/);
+});
+
 test("buildReport 要求基线自检、宿主入口、模板契约、提示词预设与管理入口同时通过", () => {
   const ws = workspace("report");
   const base = {
