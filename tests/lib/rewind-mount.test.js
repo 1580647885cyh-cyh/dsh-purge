@@ -37,20 +37,27 @@ test("#208：按钮挂在 body 的 fixed 宿主里，且由覆盖层挂载", () 
   assert.ok(client.includes("function RewindDockMount()"), "缺少 RewindDockMount 组件");
   assert.ok(client.includes("h(RewindDockMount)"), "覆盖层没有挂载 RewindDockMount —— 组件存在但没人渲染");
   assert.ok(client.includes('document.body.appendChild(el)'), "宿主节点没有挂到 body");
-  assert.ok(/rewindPortal\(h\(RewindSafe/.test(client), "没有用 portal 渲染按钮");
+  assert.ok(client.includes("rd.createPortal(h(RewindSafe"), "没有用 portal 渲染按钮");
+  assert.ok(client.includes("el.remove()"), "卸载时没有移除 body 宿主（会留下空 div）");
 });
 
 test("#208：对齐与留白按最靠下的 .standardControls", () => {
   assert.ok(client.includes('[class*="standardControls"]'), "没有找 composer 底部工具条");
   assert.ok(client.includes("rect.top >= bestTop"), "没有按「最靠下」挑锚点（会抢到消息工具条里的同名控件）");
-  assert.ok(client.includes("function reserveRewindGutter"), "缺少留白处理");
   assert.ok(client.includes("const REWIND_RESERVE_PX = 64"), "缺少预留宽度常量");
-  assert.ok(client.includes("reserveRewindGutter(anchor, false)"), "没有归还留白的路径（无会话时应恢复）");
+  assert.ok(client.includes("Math.max(REWIND_RESERVE_PX"), "预留宽度没有跟按钮实测宽度走（标签变长会压到模型选择器）");
+  assert.ok(client.includes("padded.style.paddingLeft = padded.dataset.dshpPad"), "没有归还留白的路径（无会话时应恢复）");
+});
+
+test("#208：面板盖住 composer 时让位（本次实测补充）", () => {
+  assert.ok(client.includes("function rewindDockCovers"), "缺少遮挡判断");
+  assert.ok(client.includes('.dshp-dock:not([data-open="0"])'), "没有识别「面板已打开」");
+  assert.ok(client.includes("if (rewindDockCovers(anchor.getBoundingClientRect()))"), "place() 没有调用遮挡判断");
 });
 
 test("#208：锚点查找带缓存与节流，且无会话时隐藏", () => {
   assert.ok(client.includes("now - lastQuery > 1000"), "锚点查找没有节流 —— 长会话滚动会被拖慢");
-  assert.ok(client.includes("!anchor.isConnected"), "没有检测锚点掉线（宿主重挂后不会重新对齐）");
+  assert.ok(client.includes("!padded.isConnected"), "没有检测锚点掉线（宿主重挂后不会重新对齐）");
   assert.ok(client.includes("if (!sessionRef.current)"), "没有「无会话时隐藏」的分支");
-  assert.ok(client.includes('window.addEventListener("scroll", onLayout, true)'), "滚动时没有重新对齐");
+  assert.ok(client.includes('document.addEventListener("scroll", onMove, true)'), "滚动时没有重新对齐");
 });

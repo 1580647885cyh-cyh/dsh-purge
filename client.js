@@ -2889,17 +2889,16 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
 			return "";
 		}
 
-		/* #208（跟随上游 1.1.90）：撤销按钮不再注册 conversation.input.right。
-		   那个槽位渲染在 composer 的 React 子树里 —— 宿主在提交阶段只要抛一次错，React 会把
-		   整棵子树卸载，症状是输入框连带按钮一起消失（Android WebView 切后台回来最容易触发）。
-		   现在按钮挂在 body 上的 fixed 宿主里（createPortal），渲染树完全离开 composer；
-		   位置按最靠下的 .standardControls（composer 底部工具条）矩形对齐，并给它留出空位。 */
+		/* #208：undo 按钮不再注册进 conversation.input.right。
+		   Android WebView 切后台返回时，宿主 composer 的 React 子树只要在提交阶段抛一次，
+		   整块输入框就会被卸载；把按钮挪到 body 上的 fixed 宿主 + createPortal，
+		   渲染树完全离开 composer，位置按 .standardControls 的矩形对齐。 */
 		const REWIND_HOST_ATTR = "data-dsh-purge-rewind-host";
 		const REWIND_RESERVE_PX = 64;
 
-		/** 取最靠下的那组 .standardControls：输入框在页面底部，消息工具条里的同名控件更高，别抢。 */
 		function rewindControlsAnchor() {
 			if (typeof document === "undefined") return null;
+			// 取最靠下的那一组：输入框在页面底部；消息工具条里的同名控件更高，别抢。
 			const list = document.querySelectorAll('[class*="standardControls"]');
 			let best = null;
 			let bestTop = -Infinity;
@@ -2913,10 +2912,30 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
 			return best;
 		}
 
+		/**
+		 * 清洗 / 演练台面板打开时会盖住 composer 底部（面板 z-index 10050，按钮宿主 2147482500）。
+		 * 实测：面板打开时撤销按钮会飘在面板上。这里让按钮主动让位，并归还留白。
+		 */
+		function rewindDockCovers(rect) {
+			if (typeof document === "undefined" || !rect) return false;
+			const docks = document.querySelectorAll('.dshp-dock:not([data-open="0"])');
+			for (let i = 0; i < docks.length; i += 1) {
+				const el = docks[i];
+				if (!el || el.hidden) continue;
+				const r = el.getBoundingClientRect();
+				if (!(r.width > 0) || !(r.height > 0)) continue;
+				if (r.left < rect.right && r.right > rect.left && r.top < rect.bottom && r.bottom > rect.top) return true;
+			}
+			return false;
+		}
+
 		function placeRewindHost(host, anchor, reserve) {
 			if (!host || !anchor) return;
 			const rect = anchor.getBoundingClientRect();
-			if (!(rect.width > 0) || anchor.hidden) { host.style.display = "none"; return; }
+			if (!(rect.width > 0) || anchor.hidden) {
+				host.style.display = "none";
+				return;
+			}
 			const width = host.offsetWidth || 60;
 			const height = host.offsetHeight || 28;
 			host.style.display = "block";
@@ -2924,37 +2943,16 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
 			host.style.top = Math.round(rect.top + (rect.height - height) / 2) + "px";
 		}
 
-		/** 给工具条预留左侧空位，避免按钮盖住模型选择器；记下原值以便归还。 */
-		function reserveRewindGutter(anchor, on) {
-			if (!anchor || !anchor.style) return;
-			if (on) {
-				if (anchor.dataset && anchor.dataset.dshpPad === undefined) anchor.dataset.dshpPad = anchor.style.paddingLeft || "";
-				const base = parseFloat((anchor.dataset && anchor.dataset.dshpPad) || "") || 0;
-				anchor.style.paddingLeft = (base + REWIND_RESERVE_PX) + "px";
-				return;
-			}
-			if (anchor.dataset && anchor.dataset.dshpPad !== undefined) {
-				anchor.style.paddingLeft = anchor.dataset.dshpPad || "";
-				try { delete anchor.dataset.dshpPad; } catch { /* ignore */ }
-			}
-		}
-
-		function rewindPortal(node, container) {
-			try {
-				const rd = require("react-dom");
-				if (rd && typeof rd.createPortal === "function" && container) return rd.createPortal(node, container);
-			} catch { /* ignore */ }
-			return null;
-		}
-
-		/**
-		 * 撤销按钮的挂载点：不参与 composer 的渲染树。
-		 * 无会话时按钮不显示、留白一并归还；会话切换 / resize / scroll 都重新对齐；
-		 * 锚点查找带缓存 + 1 秒节流，长会话滚动不受影响。
-		 */
 		function RewindDockMount() {
+			const t = useT();
 			const [host, setHost] = useState(null);
-			const [sessionId, setSessionId] = useState("");
+			const [, bump] = useState(0);
+			const sessionId = currentSessionId(rewindSessions);
+			// 没有会话时不留空位：按钮不显示，padding 也一起归还。
+			const sessionRef = useRef(null);
+			sessionRef.current = sessionId;
+			const placeRef = useRef(null);
+
 			useEffect(() => {
 				if (typeof document === "undefined") return undefined;
 				let el = document.querySelector("[" + REWIND_HOST_ATTR + "]");
@@ -2965,26 +2963,24 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
 				}
 				el.style.cssText = "position:fixed;z-index:2147482500;display:none;left:0;top:0;";
 				setHost(el);
-				let anchor = null;
+				let padded = null;
 				let warned = false;
 				let lastQuery = 0;
 				const startedAt = Date.now();
-				const sessionRef = { current: currentSessionId(rewindSessions) };
 				const place = (force) => {
-					if (!sessionRef.current) {
-						el.style.display = "none";
-						reserveRewindGutter(anchor, false);
-						return;
-					}
-					if (!anchor || !anchor.isConnected) {
+					// 缓存锚点 + 1s 节流：只有锚点缺失/掉线时才全文档查一次，
+					// 否则长会话里每帧扫 [class*=...] 会拖慢滚动。
+					if (!padded || !padded.isConnected) {
 						const now = Date.now();
 						if (force || now - lastQuery > 1000) {
 							lastQuery = now;
 							const next = rewindControlsAnchor();
-							if (anchor && anchor !== next) reserveRewindGutter(anchor, false);
-							anchor = next;
+							if (padded && padded !== next) padded.style.paddingLeft = padded.dataset.dshpPad || "";
+							if (next && next !== padded) next.dataset.dshpPad = next.style.paddingLeft || "";
+							padded = next;
 						}
 					}
+					const anchor = padded;
 					if (!anchor) {
 						el.style.display = "none";
 						if (!warned && Date.now() - startedAt > 5000) {
@@ -2993,28 +2989,72 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
 						}
 						return;
 					}
-					reserveRewindGutter(anchor, true);
-					placeRewindHost(el, anchor, REWIND_RESERVE_PX);
+					// 按钮标签会随失败提示变长，预留宽度跟着实测宽度走，避免压到模型选择器。
+					const reserve = Math.max(REWIND_RESERVE_PX, (el.offsetWidth || 60) + 12);
+					const pad = sessionRef.current ? reserve + "px" : (anchor.dataset.dshpPad || "");
+					if (anchor.style.paddingLeft !== pad) anchor.style.paddingLeft = pad;
+					if (!sessionRef.current) {
+						el.style.display = "none";
+						return;
+					}
+					// 面板盖住 composer 时让位（否则按钮会飘在清洗/演练台面板上）。
+					if (rewindDockCovers(anchor.getBoundingClientRect())) {
+						el.style.display = "none";
+						if (anchor.style.paddingLeft !== (anchor.dataset.dshpPad || "")) anchor.style.paddingLeft = anchor.dataset.dshpPad || "";
+						return;
+					}
+					placeRewindHost(el, anchor, reserve);
 				};
-				const onLayout = () => place(false);
 				place(true);
-				window.addEventListener("resize", onLayout);
-				window.addEventListener("scroll", onLayout, true);
-				const timer = setInterval(() => {
-					const next = currentSessionId(rewindSessions);
-					sessionRef.current = next;
-					setSessionId((cur) => (cur === next ? cur : next));
-					place(false);
-				}, 500);
+				placeRef.current = place;
+				const onMove = () => place(false);
+				const iv = setInterval(onMove, 500);
+				window.addEventListener("resize", onMove);
+				document.addEventListener("scroll", onMove, true);
 				return () => {
-					window.removeEventListener("resize", onLayout);
-					window.removeEventListener("scroll", onLayout, true);
-					clearInterval(timer);
-					reserveRewindGutter(anchor, false);
+					clearInterval(iv);
+					placeRef.current = null;
+					window.removeEventListener("resize", onMove);
+					document.removeEventListener("scroll", onMove, true);
+					if (padded) {
+						padded.style.paddingLeft = padded.dataset.dshpPad || "";
+						delete padded.dataset.dshpPad;
+					}
+					try { el.remove(); } catch { /* ignore */ }
 				};
 			}, []);
+
+			// 会话切换/首次挂载时立刻对齐，不用等 500ms 定时器。
+			useEffect(() => {
+				if (placeRef.current) placeRef.current(true);
+			}, [sessionId, host]);
+
+			useEffect(() => {
+				const offs = [];
+				const watch = (store) => {
+					try {
+						if (store && typeof store.subscribe === "function") {
+							offs.push(store.subscribe(() => bump((n) => (n + 1) % 1e9)));
+						}
+					} catch { /* ignore */ }
+				};
+				watch(rewindWorkspace && rewindWorkspace.selection);
+				watch(rewindSessions && rewindSessions.list);
+				const iv = setInterval(() => bump((n) => (n + 1) % 1e9), 2000);
+				return () => {
+					for (const off of offs) { try { off(); } catch { /* ignore */ } }
+					clearInterval(iv);
+				};
+			}, []);
+
 			if (!host || !sessionId) return null;
-			return rewindPortal(h(RewindSafe, { sessionId, t: translate }), host);
+			try {
+				const rd = require("react-dom");
+				if (rd && typeof rd.createPortal === "function") {
+					return rd.createPortal(h(RewindSafe, { sessionId, t }), host);
+				}
+			} catch { /* host 可能没暴露 react-dom */ }
+			return null;
 		}
 
 		function sessionKnown(sessions, sessionId) {
