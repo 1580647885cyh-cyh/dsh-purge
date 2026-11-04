@@ -103,6 +103,42 @@ test("knownFailures 不再把 {{cwd}} 模板记成已知故障（#5 已修复）
   assert.deepEqual(failures.map((failure) => failure.id), []);
 });
 
+test("受控工具调用：判定看 verdict，不看 record.ok（2026-11-04）", () => {
+  const ws = workspace("report-tool-verdict");
+  const base = {
+    workspace: ws,
+    seal: { baseline: { sourceRoot: "D:\\repo", source: { treeHash: "abc", fileCount: 2 }, plugin: { version: "1.1.71" }, host: { shellVersion: "0.2.1-rc.5" }, environment: {}, git: {} } },
+    sealCheck: { ok: true },
+    hostEntry: { ok: true, prompt: { length: 10, sha256: "deadbeef" }, sections: [], variables: ["provider", "model", "cwd"], tools: [], toolErrors: [], templateContract: templateContract(true), promptPreset: promptPreset(true) },
+    presetAudit: { files: [] },
+    admin: { ok: true, hosts: [], steps: [], diffs: {}, liveHost: { ok: true, checked: 0 } },
+    targets: targetsRecord(true),
+  };
+  const round = (executed, verdict) => ({
+    kind: "verify.model-tool-call",
+    ok: false,
+    verdict,
+    call: { name: "purge_nonexistent", arguments: {} },
+    endpoint: { port: 1, requests: [], requestCount: 1, attempts: 1 },
+    blocks: [],
+    executed,
+    attempts: 1,
+    retried: false,
+    error: "",
+  });
+  const okRound = round({ isError: false, textLength: 3 }, "accepted");
+
+  const rejected = buildReport({ ...base, modelToolCall: okRound, modelToolCallRejected: round({ isError: true, textLength: 39 }, "rejected") });
+  assert.equal(rejected.modelToolCallRejected.ok, false, "反向案例的 ok 本来就是 false —— 字段保留原语义");
+  assert.equal(rejected.modelToolCallRejected.verdict, "rejected");
+  assert.equal(rejected.ok, true, "判定通过时，报告不该因为 ok=false 变红");
+  assert.match(renderReportMarkdown(rejected), /判定 rejected/);
+
+  const leaked = buildReport({ ...base, modelToolCall: okRound, modelToolCallRejected: round({ isError: false, textLength: 5 }, "unexpected-success") });
+  assert.equal(leaked.ok, false, "本该被拒绝却执行成功 → 报告不通过");
+  assert.deepEqual(leaked.knownFailures.map((failure) => failure.id), ["model-tool-unknown-accepted"]);
+});
+
 test("预设入口：自研行挂载失败进已知故障，挂载覆盖与工具行进报告（A8 复盘）", () => {
   const failures = knownFailures({
     presetEntry: { ownRows: [{ id: "redteam-tools", ok: false, error: "payload.additionalProperties must be explicitly true or false" }] },

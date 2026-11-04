@@ -62,7 +62,7 @@ node scripts/verify.mjs --json # 输出机器可读报告
 | `targets.audit` | 状态与文件是否一致：`falseSuccess`、`ahead`、`behind`、`settledByLayout` |
 | `targets.runtime` | 入口五的运行结果证明：`completePrompt`、`shell`、`exitTrace`、`desktopSwap`、`presetFetch` |
 | `targets.desktop` | 入口五的 NEXT 安装树（A4 / #24）：`facts`（形态 / exe / 是否换包 / 壳入口 / 进程名）与逐条 `cases`（含 `control-red` 拔名单对照） |
-| `modelToolCall` / `modelToolCallRejected` | 受控端点上的有效调用与工具集外调用 |
+| `modelToolCall` / `modelToolCallRejected` | 受控端点上的有效调用与工具集外调用。**判定看 `verdict`**（`accepted` / `rejected` / `unexpected-success` / `unexpected-error` / `no-call` / `missing`），不看 `ok`：反向案例里 `ok` 本来就是 `false`，但那一轮是通过的（`lib/verify/tool-call-verdict.js`） |
 | `presetEntry` / `presetMigration` / `presetAudit` | 预设注册、迁移与静态审计；`presetEntry.coverage`（挂载覆盖）、`ownRows` / `toolsRow`（自研行与工具编译结果） |
 | `pendingSelfHeal` | 已安装副本仍是旧写法、等下次启动自愈的项（不算失败） |
 | `knownFailures` | 已复现且归属明确的故障；非空时验收不通过 |

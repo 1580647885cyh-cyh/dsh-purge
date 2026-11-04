@@ -115,9 +115,12 @@ test("statusFacts：读/写错误只有必需补丁才挡重启（不新增阻�
   assert.deepEqual(statusFacts("write_error:EACCES", { id: 1, strictFiles: true }), { soft: false, ready: false }, "必需补丁写不进去仍然要挡");
 });
 
-test("statusFacts：drifted 看得见、不挡 Apply，也不算已就绪（A2）", () => {
-  assert.deepEqual(statusFacts("drifted"), { soft: true, ready: false });
-  assert.equal(resultSoftOk({ status: "drifted" }, { id: 1, strictFiles: true }), true, "必需补丁漂移也不挡 Apply");
+test("statusFacts：drifted 普通补丁不挡 Apply，必需补丁挡（A2，2026-11-04 收紧）", () => {
+  assert.deepEqual(statusFacts("drifted"), { soft: true, ready: false }, "不知道是哪条补丁时按普通处理");
+  assert.deepEqual(statusFacts("drifted", { id: 1 }), { soft: true, ready: false });
+  assert.equal(resultSoftOk({ status: "drifted" }, { id: 1 }), true, "普通补丁漂移不挡 Apply");
+  assert.deepEqual(statusFacts("drifted", { id: 1, strictFiles: true }), { soft: false, ready: false });
+  assert.equal(resultSoftOk({ status: "drifted" }, { id: 1, strictFiles: true }), false, "必需补丁漂移要挡重启");
   assert.equal(readyStatus("drifted", { id: 1 }), false, "漂移不是「已就绪」");
 });
 

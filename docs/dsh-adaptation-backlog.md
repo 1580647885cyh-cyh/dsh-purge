@@ -30,7 +30,9 @@
 
 **状态：已落地（#19）**。判定 = 文件在、既非目标态、也没有可改原文、且不属于布局软结算；自标记型补丁
 （pattern 本身就是本插件痕迹）仍算 skipped，不误报。逐条给出「补丁 → 文件 → 没命中的补丁锚点」。
-**漂移一律不阻断 Apply**：上游 1.1.87 起 drifted 也是软的，本 fork 与本机用法一致。
+**漂移的阻断口径（2026-11-04 收紧）**：普通补丁的漂移仍不挡 Apply（阻断会把人锁在门外），
+但**必需补丁（`strictFiles`）的漂移现在挡重启** —— 宿主一改，必需补丁没生效还照常重启就是假绿。
+`statusFacts("drifted", patch)` 是唯一判据（`lib/patch-model.js`），消息里会点名是哪几条 `#id`。
 另：本节原先对 `6f9c500` 的描述有两处失真 —— ① `pattern_not_found` 不是「一律当阻断项」（那次是删掉
 `ensureHostClean` 的预过滤，改由 `isPatchResultSoftOk` 分级：strict 挡、optional / 布局软仍软）；
 ② 「漂移压过已完成」是**优先级**（drifted 排在 applied 之前），不是严重度。已按实测口径落地。
