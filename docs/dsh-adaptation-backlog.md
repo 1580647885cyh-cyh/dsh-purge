@@ -187,3 +187,15 @@ sidecar 已随 Apply 装入真实 `bin.js`，不做真实 web 长期看护。
 | A6 | `8d237ba` `1bdf239` | 2026-10-31 | web 回收 / 防 PID 复用误杀并等待端口释放（#197） |
 | A7 | `7fddfe3` | 2026-10-31 | fix(desktop): 换包先杀 Electron main，挪不动时把原版拉起来 (#197) |
 | A8 | `6cb2ac3` | 2026-10-31 | fix: seal object JSON schemas so redteam preset loads on DSH 0.2.1 |
+
+## E. UI 显示缺陷（2026-11-04 例外放行）
+
+ADR-0002 原本把 UI 面划在"不碰"里；2026-11-04 按用户要求开了一个口子：**只跟可静态验证的显示缺陷**。
+
+| 条目 | 上游 | 状态 | 守卫 |
+| --- | --- | --- | --- |
+| E1 暗色主按钮白底白字 | 1.1.85 / #196 | 已落地 | `tests/lib/client-dark-theme.test.js`（3 条，含"忘记 build:client 会红"） |
+| E2 撤销按钮拖垮输入框 | 1.1.90 / #208 | 已落地 | `tests/lib/rewind-mount.test.js`（4 条：无槽位、portal 挂载、最靠下锚点、节流与无会话隐藏） |
+
+已知局限：E2 的"切后台回来输入框还在"在 CI 里证不了（没有浏览器），静态测试只守结构不变量；
+真机复现步骤见上游 #208 的记录（Android WebView 切后台返回）。

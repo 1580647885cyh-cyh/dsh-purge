@@ -2889,6 +2889,134 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
 			return "";
 		}
 
+		/* #208（跟随上游 1.1.90）：撤销按钮不再注册 conversation.input.right。
+		   那个槽位渲染在 composer 的 React 子树里 —— 宿主在提交阶段只要抛一次错，React 会把
+		   整棵子树卸载，症状是输入框连带按钮一起消失（Android WebView 切后台回来最容易触发）。
+		   现在按钮挂在 body 上的 fixed 宿主里（createPortal），渲染树完全离开 composer；
+		   位置按最靠下的 .standardControls（composer 底部工具条）矩形对齐，并给它留出空位。 */
+		const REWIND_HOST_ATTR = "data-dsh-purge-rewind-host";
+		const REWIND_RESERVE_PX = 64;
+
+		/** 取最靠下的那组 .standardControls：输入框在页面底部，消息工具条里的同名控件更高，别抢。 */
+		function rewindControlsAnchor() {
+			if (typeof document === "undefined") return null;
+			const list = document.querySelectorAll('[class*="standardControls"]');
+			let best = null;
+			let bestTop = -Infinity;
+			for (let i = 0; i < list.length; i += 1) {
+				const el = list[i];
+				if (el.hidden) continue;
+				const rect = el.getBoundingClientRect();
+				if (!(rect.width > 0) || !(rect.height > 0)) continue;
+				if (rect.top >= bestTop) { best = el; bestTop = rect.top; }
+			}
+			return best;
+		}
+
+		function placeRewindHost(host, anchor, reserve) {
+			if (!host || !anchor) return;
+			const rect = anchor.getBoundingClientRect();
+			if (!(rect.width > 0) || anchor.hidden) { host.style.display = "none"; return; }
+			const width = host.offsetWidth || 60;
+			const height = host.offsetHeight || 28;
+			host.style.display = "block";
+			host.style.left = Math.max(0, Math.round(rect.left + (reserve - width) / 2)) + "px";
+			host.style.top = Math.round(rect.top + (rect.height - height) / 2) + "px";
+		}
+
+		/** 给工具条预留左侧空位，避免按钮盖住模型选择器；记下原值以便归还。 */
+		function reserveRewindGutter(anchor, on) {
+			if (!anchor || !anchor.style) return;
+			if (on) {
+				if (anchor.dataset && anchor.dataset.dshpPad === undefined) anchor.dataset.dshpPad = anchor.style.paddingLeft || "";
+				const base = parseFloat((anchor.dataset && anchor.dataset.dshpPad) || "") || 0;
+				anchor.style.paddingLeft = (base + REWIND_RESERVE_PX) + "px";
+				return;
+			}
+			if (anchor.dataset && anchor.dataset.dshpPad !== undefined) {
+				anchor.style.paddingLeft = anchor.dataset.dshpPad || "";
+				try { delete anchor.dataset.dshpPad; } catch { /* ignore */ }
+			}
+		}
+
+		function rewindPortal(node, container) {
+			try {
+				const rd = require("react-dom");
+				if (rd && typeof rd.createPortal === "function" && container) return rd.createPortal(node, container);
+			} catch { /* ignore */ }
+			return null;
+		}
+
+		/**
+		 * 撤销按钮的挂载点：不参与 composer 的渲染树。
+		 * 无会话时按钮不显示、留白一并归还；会话切换 / resize / scroll 都重新对齐；
+		 * 锚点查找带缓存 + 1 秒节流，长会话滚动不受影响。
+		 */
+		function RewindDockMount() {
+			const [host, setHost] = useState(null);
+			const [sessionId, setSessionId] = useState("");
+			useEffect(() => {
+				if (typeof document === "undefined") return undefined;
+				let el = document.querySelector("[" + REWIND_HOST_ATTR + "]");
+				if (!el) {
+					el = document.createElement("div");
+					el.setAttribute(REWIND_HOST_ATTR, "");
+					document.body.appendChild(el);
+				}
+				el.style.cssText = "position:fixed;z-index:2147482500;display:none;left:0;top:0;";
+				setHost(el);
+				let anchor = null;
+				let warned = false;
+				let lastQuery = 0;
+				const startedAt = Date.now();
+				const sessionRef = { current: currentSessionId(rewindSessions) };
+				const place = (force) => {
+					if (!sessionRef.current) {
+						el.style.display = "none";
+						reserveRewindGutter(anchor, false);
+						return;
+					}
+					if (!anchor || !anchor.isConnected) {
+						const now = Date.now();
+						if (force || now - lastQuery > 1000) {
+							lastQuery = now;
+							const next = rewindControlsAnchor();
+							if (anchor && anchor !== next) reserveRewindGutter(anchor, false);
+							anchor = next;
+						}
+					}
+					if (!anchor) {
+						el.style.display = "none";
+						if (!warned && Date.now() - startedAt > 5000) {
+							warned = true;
+							try { console.warn("[dsh-purge] rewind: composer standardControls anchor missing"); } catch { /* ignore */ }
+						}
+						return;
+					}
+					reserveRewindGutter(anchor, true);
+					placeRewindHost(el, anchor, REWIND_RESERVE_PX);
+				};
+				const onLayout = () => place(false);
+				place(true);
+				window.addEventListener("resize", onLayout);
+				window.addEventListener("scroll", onLayout, true);
+				const timer = setInterval(() => {
+					const next = currentSessionId(rewindSessions);
+					sessionRef.current = next;
+					setSessionId((cur) => (cur === next ? cur : next));
+					place(false);
+				}, 500);
+				return () => {
+					window.removeEventListener("resize", onLayout);
+					window.removeEventListener("scroll", onLayout, true);
+					clearInterval(timer);
+					reserveRewindGutter(anchor, false);
+				};
+			}, []);
+			if (!host || !sessionId) return null;
+			return rewindPortal(h(RewindSafe, { sessionId, t: translate }), host);
+		}
+
 		function sessionKnown(sessions, sessionId) {
 			try {
 				const snap = sessions?.list?.getSnapshot?.();
@@ -3518,6 +3646,20 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
 .rt-btn-primary{background:var(--dsw-alias-brand-primary);border-color:var(--dsw-alias-brand-primary);color:#fff}
 .rt-btn-primary:hover{opacity:.9}
 .rt-btn:disabled{opacity:.5;cursor:default}
+/* #196（跟随上游 1.1.85）：暗色宿主把 --dsw-alias-brand-primary 解析为近白色（neutral-bluish-50 #f9fafb），
+   任何"品牌色作底 + 白字"的按钮都会变成白底白字。暗色下主按钮统一改用绿色实底。
+   同时显式写 -webkit-text-fill-color：宿主可能用它覆盖 color，只写 color 在部分 WebView 不生效。
+   .rt-dot 只作色点、没有文字，保持原样。 */
+body[data-ds-dark-theme] .rt-btn-primary,
+.dshp-dock[data-theme="dusk"] .rt-btn-primary,
+body[data-ds-dark-theme] .dshp-dock-body .rt-btn-primary,
+.dshp-dock[data-theme="dusk"] .dshp-dock-body .rt-btn-primary{background:#3d8f68!important;border-color:#3d8f68!important;color:#fff!important;-webkit-text-fill-color:#fff!important;backdrop-filter:none}
+body[data-ds-dark-theme] .rt-btn-primary:hover:not(:disabled),
+.dshp-dock[data-theme="dusk"] .rt-btn-primary:hover:not(:disabled),
+body[data-ds-dark-theme] .dshp-dock-body .rt-btn-primary:hover:not(:disabled),
+.dshp-dock[data-theme="dusk"] .dshp-dock-body .rt-btn-primary:hover:not(:disabled){background:#347a59!important;border-color:#347a59!important;opacity:1}
+body[data-ds-dark-theme] .rt-rep-step-no,
+.dshp-dock[data-theme="dusk"] .rt-rep-step-no{background:#3d8f68;color:#fff}
 .rt-tabs{display:flex;flex-wrap:wrap;gap:2px;padding:6px 12px 0;border-bottom:1px solid var(--dsw-alias-border-l1)}
 .rt-tab{padding:8px 10px 7px;border-radius:0;cursor:pointer;font-size:12.5px;color:var(--dsw-alias-label-secondary);
   display:inline-flex;align-items:center;gap:5px;border-bottom:2px solid transparent;margin-bottom:-1px;background:transparent}
@@ -4042,20 +4184,7 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(req),
-    }).then(async (res) => {
-      const text = await res.text().catch(() => '')
-      let data = null
-      try { data = text ? JSON.parse(text) : null } catch {
-        return { ok: false, error: res.status + ' non-json: ' + String(text).slice(0, 120) }
-      }
-      if (!res.ok) {
-        return Object.assign({}, data || {}, {
-          ok: false,
-          error: (data && (data.error || data.message)) || (res.status + ' ' + res.statusText),
-        })
-      }
-      return data
-    })
+    }).then((res) => res.json())
 
     let ui = { open: true, tab: 'assets' }
     const subs = new Set()
@@ -5575,8 +5704,7 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
           a.href = url
           a.download = 'report-' + String(label || 'score').replace(/[^\w.\-]/g, '_') + '.md'
           a.click()
-          /* 立刻 revoke 会在部分浏览器里让 click 启动的下载断流,延后一拍 */
-          setTimeout(() => { try { URL.revokeObjectURL(url) } catch { /* ignore */ } }, 1000)
+          URL.revokeObjectURL(url)
           setMsg({ ok: '已下载：' + label })
         } catch (e) { setMsg({ err: '下载失败：' + ((e && e.message) || e) }) }
       }
@@ -7171,17 +7299,6 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
       const [open, setOpen] = React.useState(false)
       const [msg, setMsg] = React.useState(null)
       const [countdown, setCountdown] = React.useState(0)
-      const countdownRef = React.useRef(null)
-      const clearCountdown = React.useCallback(() => {
-        if (countdownRef.current) { try { clearInterval(countdownRef.current) } catch { /* ignore */ } }
-        countdownRef.current = null
-      }, [])
-      React.useEffect(() => () => clearCountdown(), [clearCountdown])
-      const closeModal = React.useCallback(() => {
-        clearCountdown()
-        setCountdown(0)
-        setOpen(false)
-      }, [clearCountdown])
 
       const check = (silent) => {
         if (!silent) setBusy(true)
@@ -7212,10 +7329,9 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
           setMsg({ ok: '已安装 ' + (r.installed || '') + '，正在重启当前宿主…' })
           /* 重启会断开这个页面：倒计时提示用户稍后刷新 */
           setCountdown(6)
-          clearCountdown()
-          countdownRef.current = setInterval(() => {
+          const t = setInterval(() => {
             setCountdown((n) => {
-              if (n <= 1) { clearCountdown(); window.location.reload(); return 0 }
+              if (n <= 1) { clearInterval(t); window.location.reload(); return 0 }
               return n - 1
             })
           }, 1000)
@@ -7247,7 +7363,7 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
               title: '重新检查 npm 上的最新版本',
             }, busy ? '检查中…' : '检查更新'),
         open
-          ? h('div', { className: 'rt-modal', 'aria-hidden': 'true', onClick: closeModal },
+          ? h('div', { className: 'rt-modal', 'aria-hidden': 'true', onClick: () => setOpen(false) },
               h('div', { className: 'rt-modal-box', onClick: (e) => e.stopPropagation() },
                 h('h4', { style: { marginTop: 0 } }, '更新 RedTeam 模式'),
                 h('div', { className: 'rt-kv' }, h('b', null, '当前版本'), h('span', null, current || '未知')),
@@ -7273,7 +7389,7 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
                   ? h('div', { className: 'rt-foot' }, '宿主正在重启，' + countdown + ' 秒后自动刷新页面…')
                   : null,
                 h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 10 } },
-                  h('button', { className: 'rt-btn', onClick: closeModal }, '关闭'),
+                  h('button', { className: 'rt-btn', onClick: () => setOpen(false) }, '关闭'),
                   h('button', {
                     className: 'rt-btn rt-btn-primary',
                     disabled: busy || blockers.length > 0 || mode === 'dev',
@@ -8685,15 +8801,8 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
 			rewindSessions = ctx.sessions;
 			rewindWorkspace = ctx.uiWorkspace || null;
 			rewindConversation = ctx.conversation || null;
-			ctx.slots.inject("conversation.input.right", () => ctx.slots.register({
-				name: "conversation.input.right",
-				id: "dsh-purge-rewind",
-				order: 20,
-				inject: (sessionId) => ({
-					sessionId,
-					t: ctx.locale.bind(NS),
-				}),
-			}, RewindSafe));
+			// #208：撤销按钮不再注册 conversation.input.right —— 那个槽位在 composer 的 React 子树里，
+			// 宿主提交阶段抛一次错就会连输入框一起被卸载。按钮改由 RewindDockMount 挂到 body。
 			// ctx.slots.inject("conversation.input.right", () => ctx.slots.register({
 			// 	name: "conversation.input.right",
 			// 	id: "dsh-purge-continue",
@@ -8714,7 +8823,7 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
 				name: "shell.overlay",
 				id: "dsh-purge-dock",
 				order: 50,
-			}, () => h(react.Fragment, null, h(WelcomeNotice), h(PurgeLauncher), h(PurgeDock), h(HeroNewSessionMount), h(TabRowPurgeMount), h(EnvAdaptSendGate))));
+			}, () => h(react.Fragment, null, h(WelcomeNotice), h(PurgeLauncher), h(PurgeDock), h(RewindDockMount), h(HeroNewSessionMount), h(TabRowPurgeMount), h(EnvAdaptSendGate))));
 			try {
 				if (typeof ctx.inject === "function") {
 					ctx.inject(["sessions", "uiWorkspace", "workspaces", "conversation"], (host) => installRewindUi(host));
