@@ -119,10 +119,27 @@ sidecar 已随 Apply 装入真实 `bin.js`，不做真实 web 长期看护。
 
 ### A8 · preset schema 校验
 
+**状态：已核对（0.2.1-rc.5 未复现宿主拒绝）→ 不改代码。**
+
 - **宿主侧**：0.2.1 的 preset schema 校验更严（上游 `6cb2ac3` 把 object 型参数 seal 住，
-  否则 redteam 预设加载失败）。
-- **我们现状**：`additionalProperties` 0 命中，未做。
-- **要做**：**先核对**宿主是否真的拒绝我们的 preset；拒绝了再改（改名/加 seal 属于机制面）。
+  否则 redteam 预设加载失败）。rc.5 实测规则：`dsh-tools` 的 author DSL 里任一 `type: "object"`
+  节点必须显式给布尔 `additionalProperties`（`dsh-tools/lib/index.js:699`）；漏了 `defineTool()`
+  当场抛错 → 该行 apply 失败 → registry 把整份预设记 `broken`。
+- **我们现状（复核后）**：原文「`additionalProperties` 0 命中」不成立 —— `type:'object'` 字面量
+  全仓 10 处（`lib/index.js` 6、`lib/redteam/tools.js` 4），全部已显式给值（9 × `false`、1 × `true`），
+  自封存基线 `7e28703` 起就在；没有要补的 seal。
+- **证据（现有 verify / 现场状态，未新增探针）**：
+  - 真实宿主：`$DSH_HOME/redteam/preset-declare.json`（2026-11-04T01:14:48Z）`phase: registered`
+    / `plugins: 19` / `broken: null` / `workerBroken: null`。这份记录由 `lib/redteam/index.js`
+    在 `register()` 之后读 `registry.list()` 写出；有行挂不上会落 `registered-broken` 并带诊断
+    （`activate()` 把失败记进 `record.broken`，`register()` 本身不抛）。
+  - 隔离 verify：`tmp/dsh-purge-verify/20261104-093304/out/report.json` 的 `presetEntry` ——
+    `composition`/`declaration` 0 问题（19 行）、`migrated`/`worker` 挂载 ok、负向 `toolFilter`
+    被宿主拒绝（说明这条探针撞得到挂载失败）。**局限**：只挂 `tool-subagent` 一行
+    （`lib/verify/preset-entry.js` 的 `ROW_MODULES`），不覆盖 `redteam-tools` 行；工具 schema
+    这一层由上面的真实注册记录 + 静态扫描兜底。
+- **回看条件**：工具参数新增 `type: "object"` 却漏 `additionalProperties`；或状态文件变成
+  `registered-broken` / `register-failed`。
 
 ## B. 不需要跟的（只跟上游自己的新功能绑定）
 
@@ -149,7 +166,7 @@ sidecar 已随 Apply 装入真实 `bin.js`，不做真实 web 长期看护。
 2. **A3**（窗口锚点，挑几条）→ 一个 session。
 3. **A4 + A5**（低风险）→ 一个 session。
 4. **A6 + A7**（先复现再动）→ 按复现结果排期。
-5. **A8** 随宿主升级顺带核对。
+5. **A8** 随宿主升级顺带核对。**已完成**：0.2.1-rc.5 未复现宿主拒绝（证据见 A8），不改代码。
 
 每项的验收：
 - 能在本机隔离验证里**先红后绿**（CODING_STANDARDS #6：对照要拔掉**生产路径上的那一处**）。
